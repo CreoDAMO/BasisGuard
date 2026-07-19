@@ -16,6 +16,39 @@ import {
 
 const STALE_THRESHOLD_DAYS = 180;
 
+/**
+ * Canonical set of open-gap event types per Notice 2024-57 and related IRS authority.
+ * Any position with one of these event types must go through preparer review regardless
+ * of what the caller passes for requires_review.
+ *
+ * Keep in sync with OPEN_GAP_EVENT_TYPES in export.ts and OPEN_GAP_EVENTS in comment-letter.
+ */
+export const OPEN_GAP_EVENT_TYPES = new Set([
+  "lp_deposit",
+  "lp_withdrawal",
+  "defi_yield",
+  "bridge_transfer",
+  "staking_reward",
+  "nft_sale",
+]);
+
+/**
+ * Computes the effective requires_review flag for a new position.
+ * Rules (in priority order):
+ *  1. Open-gap event type → always true, non-overridable.
+ *  2. No citations linked → true (a position without any authority cannot be auto-applied).
+ *  3. Otherwise → honour the caller's value (default false).
+ */
+function computeRequiresReview(
+  eventType: string,
+  citationIds: string[] | undefined,
+  callerValue: boolean | undefined | null,
+): boolean {
+  if (OPEN_GAP_EVENT_TYPES.has(eventType)) return true;
+  if (!citationIds || citationIds.length === 0) return true;
+  return callerValue ?? false;
+}
+
 const router: IRouter = Router();
 
 // Helper: fetch citations for a position
@@ -119,7 +152,7 @@ router.post("/positions", async (req, res): Promise<void> => {
     rationale: rest.rationale,
     profileId: rest.profile_id ?? null,
     profileVersion: rest.profile_version ?? null,
-    requiresReview: rest.requires_review ?? false,
+    requiresReview: computeRequiresReview(rest.event_type, citation_ids, rest.requires_review),
   }).returning();
 
   if (citation_ids && citation_ids.length > 0) {
@@ -410,7 +443,7 @@ router.post("/positions/:id/supersede", async (req, res): Promise<void> => {
     rationale: rest.rationale,
     profileId: rest.profile_id ?? existing.profileId,
     profileVersion: rest.profile_version ?? existing.profileVersion,
-    requiresReview: rest.requires_review ?? false,
+    requiresReview: computeRequiresReview(rest.event_type, citation_ids, rest.requires_review),
   }).returning();
 
   // Mark old as superseded

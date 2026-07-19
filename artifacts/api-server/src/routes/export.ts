@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, positionRecordsTable, positionCitationsTable, authorityCitationsTable, treatmentProfilesTable } from "@workspace/db";
 import { GetAuditPackageQueryParams } from "@workspace/api-zod";
+import { OPEN_GAP_EVENT_TYPES } from "./positions.js";
 
 const router: IRouter = Router();
 
@@ -113,10 +114,7 @@ router.get("/export/pattern-report", async (_req, res): Promise<void> => {
     tier: positionRecordsTable.tier,
   }).from(positionRecordsTable);
 
-  const OPEN_GAP_EVENT_TYPES = new Set([
-    "lp_deposit", "lp_withdrawal", "defi_yield",
-    "bridge_transfer", "nft_sale", "staking_reward",
-  ]);
+  // Imported from positions.ts — single source of truth for open-gap classification.
 
   const byEventType: Record<string, { count: number; tiers: Record<string, number>; open_gap: boolean }> = {};
 
