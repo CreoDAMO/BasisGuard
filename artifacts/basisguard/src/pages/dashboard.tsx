@@ -8,7 +8,7 @@ import { TierBadge } from "@/components/ui/tier-badge";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { ShieldAlert, FileText, CheckCircle2, Bot, Layers, BookMarked, AlertCircle, Network } from "lucide-react";
+import { ShieldAlert, FileText, CheckCircle2, Bot, Layers, BookMarked, AlertCircle, Network, AlertTriangle } from "lucide-react";
 
 interface Chain { id: string; name: string; slug: string; is_l2: boolean; }
 interface Protocol { id: string; chain_id: string; name: string; slug: string; }
@@ -121,6 +121,28 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Stale positions alert */}
+      {summary && summary.stale_count > 0 && (
+        <div className="flex items-start gap-4 rounded-lg border border-orange-500/30 bg-orange-500/5 px-5 py-4 text-orange-400">
+          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-mono text-sm font-semibold uppercase tracking-wider">
+              {summary.stale_count} Stale Reasonable Basis Position{summary.stale_count !== 1 ? "s" : ""} Need Attention
+            </p>
+            <p className="text-xs font-serif mt-1 text-orange-400/80 leading-relaxed">
+              These positions were classified over 180 days ago and may require an authority upgrade or supersession
+              before filing. Form 8275 disclosure is required for all Reasonable Basis positions.
+            </p>
+          </div>
+          <Link
+            href="/review-queue"
+            className="shrink-0 text-xs font-mono font-semibold text-orange-300 hover:text-orange-200 transition-colors whitespace-nowrap border border-orange-500/30 rounded px-3 py-1.5 hover:bg-orange-500/10"
+          >
+            Review Stale →
+          </Link>
         </div>
       )}
 

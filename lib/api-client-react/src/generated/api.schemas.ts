@@ -298,6 +298,52 @@ export interface DashboardSummary {
   active_profiles: number;
   total_citations: number;
   open_gap_events: number;
+  stale_count: number;
+}
+
+export type IntelligenceSuggestionSuggestedTier = typeof IntelligenceSuggestionSuggestedTier[keyof typeof IntelligenceSuggestionSuggestedTier];
+
+
+export const IntelligenceSuggestionSuggestedTier = {
+  will: 'will',
+  should: 'should',
+  more_likely_than_not: 'more_likely_than_not',
+  substantial_authority: 'substantial_authority',
+  reasonable_basis: 'reasonable_basis',
+} as const;
+
+export interface IntelligenceSuggestion {
+  event_type: string;
+  suggested_tier: IntelligenceSuggestionSuggestedTier;
+  confidence_basis: string;
+  rationale_template: string;
+  suggested_authority_ids: string[];
+  citations_seeded: number;
+}
+
+export interface StalePositionItem {
+  id: string;
+  /** @nullable */
+  tx_id?: string | null;
+  /** @nullable */
+  wallet_id?: string | null;
+  event_type: string;
+  classification: string;
+  tier: string;
+  rationale: string;
+  /** @nullable */
+  profile_id?: string | null;
+  requires_review: boolean;
+  /** @nullable */
+  reviewer_signoff_at?: string | null;
+  created_at: string;
+  days_since_classification: number;
+  is_stale: boolean;
+}
+
+export interface StalePositionList {
+  stale_count: number;
+  items: StalePositionItem[];
 }
 
 export interface BatchSignoffInput {
@@ -565,6 +611,21 @@ export interface ProtocolSubmissionInput {
 
 export type GetRecentActivityParams = {
 limit?: number;
+};
+
+export type GetIntelligenceSuggestionParams = {
+/**
+ * The DeFi event type to classify (e.g. swap, staking_reward, airdrop)
+ */
+event_type: string;
+/**
+ * Optional protocol slug (e.g. uniswap_v3) for context
+ */
+protocol?: string;
+/**
+ * Optional chain slug (e.g. ethereum) for context
+ */
+chain?: string;
 };
 
 export type ListPositionsParams = {

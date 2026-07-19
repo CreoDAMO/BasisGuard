@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, count, desc, and, isNotNull } from "drizzle-orm";
+import { eq, count, desc, and, isNotNull, isNull, lt } from "drizzle-orm";
 import { db, positionRecordsTable, authorityCitationsTable, treatmentProfilesTable } from "@workspace/db";
 import { GetRecentActivityQueryParams } from "@workspace/api-zod";
 
@@ -22,8 +22,12 @@ const OPEN_GAP_EVENT_TYPES = [
   "staking_reward",
 ];
 
+const STALE_THRESHOLD_DAYS = 180;
+
 // GET /dashboard/summary
 router.get("/dashboard/summary", async (_req, res): Promise<void> => {
+  const staleCutoff = new Date(Date.now() - STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
+
   const [
     totalRows,
     pendingRows,
@@ -32,6 +36,7 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
     citationRows,
     profileRows,
     allPositions,
+    staleCandidates,
   ] = await Promise.all([
     db.select({ count: count() }).from(positionRecordsTable),
     db.select({ count: count() }).from(positionRecordsTable).where(
@@ -42,6 +47,13 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
     db.select({ count: count() }).from(authorityCitationsTable),
     db.select({ count: count() }).from(treatmentProfilesTable).where(eq(treatmentProfilesTable.status, "active")),
     db.select({ tier: positionRecordsTable.tier, eventType: positionRecordsTable.eventType }).from(positionRecordsTable),
+    db.select({ count: count() }).from(positionRecordsTable).where(
+      and(
+        eq(positionRecordsTable.tier, "reasonable_basis"),
+        isNull(positionRecordsTable.supersededBy),
+        lt(positionRecordsTable.createdAt, staleCutoff)
+      )
+    ),
   ]);
 
   // Tier breakdown
@@ -64,6 +76,7 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
     pending_review: Number(pendingRows[0].count),
     signed_off: Number(signedOffRows[0].count),
     auto_applied: Number(autoAppliedRows[0].count),
+    stale_count: Number(staleCandidates[0].count),
     tier_breakdown: tierBreakdown,
     active_profiles: Number(profileRows[0].count),
     total_citations: Number(citationRows[0].count),

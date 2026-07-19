@@ -16,4 +16,5 @@ export interface DashboardSummary {
   active_profiles: number;
   total_citations: number;
   open_gap_events: number;
+  stale_count: number;
 }

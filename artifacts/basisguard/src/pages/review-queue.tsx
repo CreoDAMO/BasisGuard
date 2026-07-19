@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useGetReviewQueue, useBatchSignoffPositions, getGetReviewQueueQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -11,25 +11,45 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { TierBadge } from "@/components/ui/tier-badge";
-import { CheckSquare, ArrowRight, CheckCircle2, Users, X } from "lucide-react";
+import { CheckSquare, ArrowRight, CheckCircle2, Users, X, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
+
+interface StaleItem {
+  id: string;
+  event_type: string;
+  classification: string;
+  tier: string;
+  rationale: string;
+  requires_review: boolean;
+  reviewer_signoff_at: string | null;
+  created_at: string;
+  days_since_classification: number;
+  is_stale: boolean;
+}
 
 export default function ReviewQueuePage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: queue, isLoading } = useGetReviewQueue();
+  const { data: staleData, isLoading: staleLoading } = useQuery<{ stale_count: number; items: StaleItem[] }>({
+    queryKey: ["stale-positions"],
+    queryFn: () => fetch("/api/intelligence/stale").then(r => r.json()),
+  });
   const batchSignoff = useBatchSignoffPositions();
 
+  const [tab, setTab] = useState<"pending" | "stale">("pending");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [reviewerName, setReviewerName] = useState("");
   const [reviewerCredential, setReviewerCredential] = useState("");
   const [note, setNote] = useState("");
 
-  const allIds = queue?.map((p) => p.id) ?? [];
+  const currentItems = tab === "pending" ? (queue ?? []) : (staleData?.items ?? []);
+  const allIds = currentItems.map((p) => p.id);
   const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
 
@@ -77,10 +97,13 @@ export default function ReviewQueuePage() {
       setReviewerCredential("");
       setNote("");
       queryClient.invalidateQueries({ queryKey: getGetReviewQueueQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ["stale-positions"] });
     } catch {
       toast.error("Batch sign-off failed", { description: "Check your inputs and try again." });
     }
   };
+
+  const staleCount = staleData?.stale_count ?? 0;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 h-full flex flex-col">
@@ -95,109 +118,169 @@ export default function ReviewQueuePage() {
             Positions requiring preparer sign-off
           </p>
         </div>
-        {queue && queue.length > 0 && (
-          <div className="flex items-center gap-2 text-muted-foreground font-mono text-sm">
+        <div className="flex items-center gap-2">
+          {queue && queue.length > 0 && (
             <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono px-3 py-1">
-              {queue.length} pending
+              {queue.length} pending sign-off
             </Badge>
-          </div>
-        )}
+          )}
+          {staleCount > 0 && (
+            <Badge variant="outline" className="border-orange-500/30 text-orange-400 bg-orange-500/10 font-mono px-3 py-1">
+              {staleCount} stale
+            </Badge>
+          )}
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="border border-border/50 rounded-md overflow-hidden bg-card/30 flex-1 flex flex-col min-h-[400px]">
-        <Table>
-          <TableHeader className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
-            <TableRow className="border-border/50 hover:bg-transparent">
-              <TableHead className="w-12 pl-4">
-                {allIds.length > 0 && (
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleAll}
-                    aria-label="Select all"
-                    className="border-border/60"
-                  />
-                )}
-              </TableHead>
-              <TableHead className="w-[140px] font-mono text-xs uppercase tracking-wider">Date</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Event & Classification</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Rationale Preview</TableHead>
-              <TableHead className="w-[160px] font-mono text-xs uppercase tracking-wider text-center">Confidence</TableHead>
-              <TableHead className="w-[100px] font-mono text-xs uppercase tracking-wider text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array(5).fill(0).map((_, i) => (
-                <TableRow key={i} className="border-border/50">
-                  <TableCell className="pl-4"><Skeleton className="h-4 w-4" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-full" /></TableCell>
-                  <TableCell className="text-center"><Skeleton className="h-6 w-20 mx-auto" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
-                </TableRow>
-              ))
-            ) : !queue || queue.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-[400px] text-center text-muted-foreground">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="h-16 w-16 bg-muted/50 rounded-full flex items-center justify-center mb-4 border border-border/50">
-                      <CheckCircle2 className="h-8 w-8 text-green-500/50" />
-                    </div>
-                    <h3 className="font-serif text-xl text-foreground mb-1">Queue Empty</h3>
-                    <p className="font-mono text-sm max-w-sm">All positions have been reviewed and signed off. The evidence log is fully attested.</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              queue.map((pos) => (
-                <TableRow
-                  key={pos.id}
-                  className={`border-border/50 hover:bg-muted/30 transition-colors group cursor-pointer ${
-                    selectedIds.has(pos.id) ? "bg-primary/5 hover:bg-primary/8" : ""
-                  }`}
-                  onClick={(e) => {
-                    // Don't navigate if clicking checkbox
-                    const target = e.target as HTMLElement;
-                    if (target.closest('[role="checkbox"]')) return;
-                    setLocation(`/positions/${pos.id}`);
-                  }}
-                >
-                  <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
-                    <Checkbox
-                      checked={selectedIds.has(pos.id)}
-                      onCheckedChange={() => toggleOne(pos.id)}
-                      aria-label={`Select position ${pos.id}`}
-                      className="border-border/60"
-                    />
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-                    {format(new Date(pos.created_at), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium text-sm text-foreground">{pos.event_type}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{pos.classification}</div>
-                  </TableCell>
-                  <TableCell className="max-w-md">
-                    <p className="truncate text-sm text-muted-foreground font-serif">
-                      {pos.rationale}
-                    </p>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <TierBadge tier={pos.tier} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="group-hover:bg-primary/20 group-hover:text-primary transition-colors">
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+      {/* Tabs */}
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as "pending" | "stale"); setSelectedIds(new Set()); }}>
+        <TabsList className="bg-muted/30 border border-border/50">
+          <TabsTrigger value="pending" className="font-mono text-xs uppercase tracking-wider gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            Pending Sign-Off
+            {queue && queue.length > 0 && (
+              <Badge className="ml-1 h-4 min-w-4 px-1 text-[10px] bg-amber-500/20 text-amber-400 border-none">{queue.length}</Badge>
             )}
-          </TableBody>
-        </Table>
-      </div>
+          </TabsTrigger>
+          <TabsTrigger value="stale" className="font-mono text-xs uppercase tracking-wider gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Stale Positions
+            {staleCount > 0 && (
+              <Badge className="ml-1 h-4 min-w-4 px-1 text-[10px] bg-orange-500/20 text-orange-400 border-none">{staleCount}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Stale context banner */}
+        {tab === "stale" && staleCount > 0 && (
+          <div className="flex items-start gap-3 rounded-md border border-orange-500/30 bg-orange-500/5 p-4 text-orange-400">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-mono text-sm font-semibold uppercase tracking-wider">
+                {staleCount} Reasonable Basis Position{staleCount !== 1 ? "s" : ""} Require Attention
+              </p>
+              <p className="text-xs font-serif mt-1 text-orange-400/80 leading-relaxed">
+                These positions were classified at Reasonable Basis over 180 days ago. New IRS guidance
+                may apply — review each record for potential supersession or authority upgrade.
+                Form 8275 disclosure is required for all Reasonable Basis positions.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Table — shared across both tabs */}
+        <TabsContent value={tab} className="mt-0">
+          <div className="border border-border/50 rounded-md overflow-hidden bg-card/30 flex-1 flex flex-col min-h-[400px]">
+            <Table>
+              <TableHeader className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
+                <TableRow className="border-border/50 hover:bg-transparent">
+                  <TableHead className="w-12 pl-4">
+                    {allIds.length > 0 && (
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all"
+                        className="border-border/60"
+                      />
+                    )}
+                  </TableHead>
+                  <TableHead className="w-[140px] font-mono text-xs uppercase tracking-wider">Date</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider">Event & Classification</TableHead>
+                  <TableHead className="font-mono text-xs uppercase tracking-wider">
+                    {tab === "stale" ? "Age" : "Rationale Preview"}
+                  </TableHead>
+                  <TableHead className="w-[160px] font-mono text-xs uppercase tracking-wider text-center">Confidence</TableHead>
+                  <TableHead className="w-[100px] font-mono text-xs uppercase tracking-wider text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(tab === "pending" ? isLoading : staleLoading) ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i} className="border-border/50">
+                      <TableCell className="pl-4"><Skeleton className="h-4 w-4" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="h-6 w-20 mx-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : currentItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-[400px] text-center text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="h-16 w-16 bg-muted/50 rounded-full flex items-center justify-center mb-4 border border-border/50">
+                          <CheckCircle2 className="h-8 w-8 text-green-500/50" />
+                        </div>
+                        <h3 className="font-serif text-xl text-foreground mb-1">
+                          {tab === "pending" ? "Queue Empty" : "No Stale Positions"}
+                        </h3>
+                        <p className="font-mono text-sm max-w-sm">
+                          {tab === "pending"
+                            ? "All positions have been reviewed and signed off."
+                            : "All Reasonable Basis positions are current (under 180 days old)."}
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentItems.map((pos) => (
+                    <TableRow
+                      key={pos.id}
+                      className={`border-border/50 hover:bg-muted/30 transition-colors group cursor-pointer ${
+                        selectedIds.has(pos.id) ? "bg-primary/5 hover:bg-primary/8" : ""
+                      }`}
+                      onClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (target.closest('[role="checkbox"]')) return;
+                        setLocation(`/positions/${pos.id}`);
+                      }}
+                    >
+                      <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(pos.id)}
+                          onCheckedChange={() => toggleOne(pos.id)}
+                          aria-label={`Select position ${pos.id}`}
+                          className="border-border/60"
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                        {format(new Date(pos.created_at), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-sm text-foreground">{pos.event_type}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{pos.classification}</div>
+                      </TableCell>
+                      <TableCell className="max-w-md">
+                        {tab === "stale" ? (
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="border-orange-500/30 text-orange-400 bg-orange-500/5 font-mono text-[10px]">
+                              {(pos as StaleItem).days_since_classification}d old
+                            </Badge>
+                            <span className="text-xs text-muted-foreground font-mono">Upgrade recommended</span>
+                          </div>
+                        ) : (
+                          <p className="truncate text-sm text-muted-foreground font-serif">
+                            {pos.rationale}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <TierBadge tier={pos.tier} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Floating batch action bar */}
       {someSelected && (

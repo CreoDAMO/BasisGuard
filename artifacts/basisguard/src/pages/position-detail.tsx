@@ -4,15 +4,18 @@ import {
   useGetPosition,
   useSignOffPosition,
   useGetPositionHistory,
+  useSupersedePosition,
+  useListCitations,
   getGetPositionQueryKey,
   getGetPositionHistoryQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -21,9 +24,33 @@ import { TierBadge } from "@/components/ui/tier-badge";
 import { format } from "date-fns";
 import {
   ArrowLeft, BookOpen, User, CheckCircle2, AlertTriangle,
-  CheckSquare, Scale, GitBranch, Clock, AlertCircle
+  CheckSquare, Scale, GitBranch, Clock, AlertCircle, Sparkles, ArrowUp
 } from "lucide-react";
 import { toast } from "sonner";
+
+interface IntelligenceSuggestion {
+  event_type: string;
+  suggested_tier: string;
+  confidence_basis: string;
+  rationale_template: string;
+  suggested_authority_ids: string[];
+  citations_seeded: number;
+}
+
+const TIER_ORDER = ["will", "should", "more_likely_than_not", "substantial_authority", "reasonable_basis"] as const;
+type Tier = typeof TIER_ORDER[number];
+
+const TIER_LABELS: Record<string, string> = {
+  will: "Will Prevail",
+  should: "Should Prevail",
+  more_likely_than_not: "More Likely Than Not",
+  substantial_authority: "Substantial Authority",
+  reasonable_basis: "Reasonable Basis",
+};
+
+function tierRank(tier: string): number {
+  return TIER_ORDER.indexOf(tier as Tier);
+}
 
 export default function PositionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,10 +65,40 @@ export default function PositionDetailPage() {
     query: { enabled: !!id, queryKey: getGetPositionHistoryQueryKey(id || "") }
   });
 
+  // Fetch intelligence suggestion when position is stale
+  const { data: suggestion } = useQuery<IntelligenceSuggestion>({
+    queryKey: ["intelligence-suggest", position?.event_type],
+    queryFn: () => fetch(`/api/intelligence/suggest?event_type=${encodeURIComponent(position!.event_type)}`).then(r => r.json()),
+    enabled: !!(position?.is_stale || position?.tier === "reasonable_basis"),
+  });
+
+  // Fetch citations for the supersede dialog
+  const { data: citationsData } = useListCitations({}, {
+    query: { enabled: !!(position?.is_stale), queryKey: ["citations-all"] }
+  });
+
   const signOffMutation = useSignOffPosition();
+  const supersedeMutation = useSupersedePosition();
+
   const [isSignoffOpen, setIsSignoffOpen] = useState(false);
   const [reviewerName, setReviewerName] = useState("");
   const [reviewerCredential, setReviewerCredential] = useState("");
+
+  // Supersede-with-intelligence dialog
+  const [isSupersede, setIsSupersede] = useState(false);
+  const [supersedeUseTemplate, setSupersedeUseTemplate] = useState(true);
+  const [supersedeTier, setSupersedeTier] = useState<string>("");
+  const [supersedeRationale, setSupersedeRationale] = useState("");
+  const [supersedeClassification, setSupersedeClassification] = useState("");
+
+  const openSupersedeDialog = () => {
+    if (suggestion) {
+      setSupersedeTier(suggestion.suggested_tier);
+      setSupersedeRationale(suggestion.rationale_template);
+    }
+    setSupersedeClassification(position?.classification ?? "");
+    setIsSupersede(true);
+  };
 
   const handleSignOff = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +119,36 @@ export default function PositionDetailPage() {
       queryClient.invalidateQueries({ queryKey: getGetPositionQueryKey(id) });
     } catch {
       toast.error("Sign-off failed", { description: "There was an error saving the sign-off record." });
+    }
+  };
+
+  const handleSupersede = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !supersedeTier || !supersedeRationale || !supersedeClassification) return;
+    try {
+      const citationIds = supersedeUseTemplate && suggestion?.suggested_authority_ids?.length
+        ? suggestion.suggested_authority_ids
+        : [];
+
+      await supersedeMutation.mutateAsync({
+        id,
+        data: {
+          event_type: position!.event_type,
+          classification: supersedeClassification,
+          tier: supersedeTier as Tier,
+          rationale: supersedeRationale,
+          requires_review: true,
+          ...(citationIds.length > 0 && { citation_ids: citationIds } as any),
+        }
+      });
+      toast.success("Supersession created", {
+        description: "A new authoritative record has been created. Review and sign off when ready."
+      });
+      setIsSupersede(false);
+      queryClient.invalidateQueries({ queryKey: getGetPositionQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetPositionHistoryQueryKey(id) });
+    } catch {
+      toast.error("Supersession failed", { description: "There was an error creating the supersession." });
     }
   };
 
@@ -87,6 +174,9 @@ export default function PositionDetailPage() {
       </div>
     );
   }
+
+  const hasSuggestionUpgrade = suggestion &&
+    tierRank(suggestion.suggested_tier) < tierRank(position.tier);
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8">
@@ -140,6 +230,86 @@ export default function PositionDetailPage() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Intelligence card — shown when stale or reasonable_basis with a better suggestion */}
+      {suggestion && !position.superseded_by && (
+        <Card className={`border shadow-sm ${
+          hasSuggestionUpgrade
+            ? "border-indigo-500/30 bg-indigo-500/5"
+            : "border-border/50 bg-card/50"
+        }`}>
+          <CardHeader className="pb-3 border-b border-border/50">
+            <CardTitle className="font-serif text-base flex items-center gap-2">
+              <Sparkles className={`h-4 w-4 ${hasSuggestionUpgrade ? "text-indigo-400" : "text-muted-foreground"}`} />
+              <span className={hasSuggestionUpgrade ? "text-indigo-300" : "text-foreground"}>
+                Intelligence Analysis
+              </span>
+              {hasSuggestionUpgrade && (
+                <Badge variant="outline" className="border-indigo-500/30 text-indigo-400 bg-indigo-500/10 font-mono text-[10px] ml-1">
+                  <ArrowUp className="h-2.5 w-2.5 mr-1" />
+                  Tier Upgrade Available
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Suggested Tier</p>
+                <div className="flex items-center gap-2">
+                  <TierBadge tier={suggestion.suggested_tier} />
+                  {hasSuggestionUpgrade && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      vs. current <span className="text-amber-400">{TIER_LABELS[position.tier] ?? position.tier}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Confidence Basis</p>
+                <p className="text-xs font-serif text-foreground/80 leading-relaxed">{suggestion.confidence_basis}</p>
+              </div>
+            </div>
+
+            {suggestion.suggested_authority_ids.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">Suggested Authorities</p>
+                <div className="flex gap-2 flex-wrap">
+                  {suggestion.suggested_authority_ids.map((id) => {
+                    const citation = citationsData?.find((c: any) => c.id === id);
+                    return (
+                      <Badge key={id} variant="outline" className="font-mono text-[10px] border-border/50 text-muted-foreground">
+                        {citation?.reference ?? id.substring(0, 16) + "…"}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {!position.superseded_by && (
+              <div className="mt-4 pt-4 border-t border-border/30">
+                <Button
+                  size="sm"
+                  variant={hasSuggestionUpgrade ? "default" : "outline"}
+                  onClick={openSupersedeDialog}
+                  className={`font-mono text-xs tracking-wider gap-1.5 ${
+                    hasSuggestionUpgrade
+                      ? "bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+                      : ""
+                  }`}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  {hasSuggestionUpgrade ? "Create Upgraded Supersession" : "Create Supersession with Template"}
+                </Button>
+                <p className="text-[10px] font-mono text-muted-foreground/60 mt-2">
+                  Pre-fills tier, rationale template, and authority citations from the suggestion engine.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Superseded warning */}
@@ -334,14 +504,12 @@ export default function PositionDetailPage() {
                 </div>
               ) : (
                 <div className="relative">
-                  {/* Timeline connector */}
                   {history.entries.length > 1 && (
                     <div className="absolute left-[19px] top-10 bottom-10 w-px bg-border/50" />
                   )}
                   <div className="space-y-0">
                     {history.entries.map((entry, idx) => (
                       <div key={entry.id} className="flex gap-4 pb-6 last:pb-0">
-                        {/* Timeline dot */}
                         <div className="relative flex-shrink-0 flex flex-col items-center">
                           <div className={`h-10 w-10 rounded-full border-2 flex items-center justify-center font-mono text-xs font-bold z-10 ${
                             entry.is_current
@@ -356,7 +524,6 @@ export default function PositionDetailPage() {
                           </div>
                         </div>
 
-                        {/* Entry content */}
                         <div className={`flex-1 rounded-md border p-4 transition-colors ${
                           entry.is_current
                             ? "border-primary/30 bg-primary/5"
@@ -455,6 +622,121 @@ export default function PositionDetailPage() {
               <Button type="button" variant="ghost" onClick={() => setIsSignoffOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={signOffMutation.isPending} className="font-mono tracking-wider">
                 {signOffMutation.isPending ? "Signing..." : "Attest & Sign Off"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supersede-with-intelligence dialog */}
+      <Dialog open={isSupersede} onOpenChange={setIsSupersede}>
+        <DialogContent className="sm:max-w-[640px] border-border/50 bg-background/95 backdrop-blur-md">
+          <form onSubmit={handleSupersede}>
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-indigo-400" />
+                Create Supersession
+              </DialogTitle>
+              <DialogDescription className="font-serif text-sm">
+                Pre-filled from the Intelligence Engine. Review and adjust before creating the new authoritative record.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-5">
+              {/* Tier selector */}
+              <div className="grid gap-2">
+                <Label className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Confidence Tier</Label>
+                <div className="flex flex-wrap gap-2">
+                  {TIER_ORDER.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSupersedeTier(t)}
+                      className={`px-3 py-1.5 rounded border font-mono text-xs transition-colors ${
+                        supersedeTier === t
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+                      }`}
+                    >
+                      {TIER_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Classification */}
+              <div className="grid gap-2">
+                <Label htmlFor="sup-classification" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  Applied Classification
+                </Label>
+                <Input
+                  id="sup-classification"
+                  value={supersedeClassification}
+                  onChange={(e) => setSupersedeClassification(e.target.value)}
+                  className="bg-card/50 border-border/50 font-mono"
+                  placeholder="e.g. Taxable Exchange — Capital Gain"
+                  required
+                />
+              </div>
+
+              {/* Rationale */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="sup-rationale" className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                    Rationale
+                  </Label>
+                  {suggestion && (
+                    <button
+                      type="button"
+                      onClick={() => setSupersedeRationale(suggestion.rationale_template)}
+                      className="text-[10px] font-mono text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      ↺ Reset to template
+                    </button>
+                  )}
+                </div>
+                <Textarea
+                  id="sup-rationale"
+                  value={supersedeRationale}
+                  onChange={(e) => setSupersedeRationale(e.target.value)}
+                  className="bg-card/50 border-border/50 font-serif text-sm resize-none"
+                  rows={6}
+                  required
+                />
+              </div>
+
+              {/* Authorities summary */}
+              {suggestion && suggestion.suggested_authority_ids.length > 0 && (
+                <div className="p-3 bg-indigo-500/5 border border-indigo-500/20 rounded text-xs font-mono text-muted-foreground">
+                  <span className="text-indigo-400 font-semibold">Authorities to be linked: </span>
+                  {suggestion.suggested_authority_ids.map((aid) => {
+                    const citation = citationsData?.find((c: any) => c.id === aid);
+                    return citation?.reference ?? aid.substring(0, 16);
+                  }).join(" · ")}
+                </div>
+              )}
+
+              <div className="p-3 bg-muted/20 border border-border/50 rounded text-[10px] font-mono text-muted-foreground">
+                This will create a new authoritative record and mark the current record as superseded.
+                The supersession requires sign-off before it is considered attested.
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setIsSupersede(false)}>Cancel</Button>
+              <Button
+                type="submit"
+                disabled={supersedeMutation.isPending || !supersedeTier || !supersedeRationale}
+                className="font-mono tracking-wider gap-2 bg-indigo-600 hover:bg-indigo-700 text-white border-none"
+              >
+                {supersedeMutation.isPending ? (
+                  "Creating…"
+                ) : (
+                  <>
+                    <GitBranch className="h-4 w-4" />
+                    Create Supersession
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>

@@ -24,6 +24,8 @@ tags:
     description: Chain and protocol registry
   - name: submissions
     description: Self-service chain/protocol onboarding submissions
+  - name: intelligence
+    description: Tier suggestion engine and stale position detection
 
 paths:
   /healthz:
@@ -73,6 +75,50 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/PositionRecord"
+
+  # ── Intelligence ─────────────────────────────────────────────────────────────
+  /intelligence/suggest:
+    get:
+      operationId: getIntelligenceSuggestion
+      tags: [intelligence]
+      summary: Suggest tier, rationale template, and authority IDs for an event type
+      parameters:
+        - name: event_type
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The DeFi event type to classify (e.g. swap, staking_reward, airdrop)
+        - name: protocol
+          in: query
+          schema:
+            type: string
+          description: Optional protocol slug (e.g. uniswap_v3) for context
+        - name: chain
+          in: query
+          schema:
+            type: string
+          description: Optional chain slug (e.g. ethereum) for context
+      responses:
+        "200":
+          description: Tier suggestion with rationale template and authority IDs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntelligenceSuggestion"
+
+  /intelligence/stale:
+    get:
+      operationId: getStalePositions
+      tags: [intelligence]
+      summary: List all stale positions (reasonable_basis, >180 days, not superseded)
+      responses:
+        "200":
+          description: Stale positions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StalePositionList"
 
   # ── Positions ────────────────────────────────────────────────────────────────
   /positions:
@@ -1280,6 +1326,8 @@ components:
           type: integer
         open_gap_events:
           type: integer
+        stale_count:
+          type: integer
       required:
         - total_positions
         - pending_review
@@ -1289,6 +1337,87 @@ components:
         - active_profiles
         - total_citations
         - open_gap_events
+        - stale_count
+
+    # ── Intelligence ─────────────────────────────────────────────────────────
+    IntelligenceSuggestion:
+      type: object
+      properties:
+        event_type:
+          type: string
+        suggested_tier:
+          type: string
+          enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+        confidence_basis:
+          type: string
+        rationale_template:
+          type: string
+        suggested_authority_ids:
+          type: array
+          items:
+            type: string
+        citations_seeded:
+          type: integer
+      required:
+        - event_type
+        - suggested_tier
+        - confidence_basis
+        - rationale_template
+        - suggested_authority_ids
+        - citations_seeded
+
+    StalePositionItem:
+      type: object
+      properties:
+        id:
+          type: string
+        tx_id:
+          type: ["string", "null"]
+        wallet_id:
+          type: ["string", "null"]
+        event_type:
+          type: string
+        classification:
+          type: string
+        tier:
+          type: string
+        rationale:
+          type: string
+        profile_id:
+          type: ["string", "null"]
+        requires_review:
+          type: boolean
+        reviewer_signoff_at:
+          type: ["string", "null"]
+        created_at:
+          type: string
+        days_since_classification:
+          type: integer
+        is_stale:
+          type: boolean
+      required:
+        - id
+        - event_type
+        - classification
+        - tier
+        - rationale
+        - requires_review
+        - created_at
+        - days_since_classification
+        - is_stale
+
+    StalePositionList:
+      type: object
+      properties:
+        stale_count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StalePositionItem"
+      required:
+        - stale_count
+        - items
 
     # ── Batch Signoff ──────────────────────────────────────────────────────────
     BatchSignoffInput:

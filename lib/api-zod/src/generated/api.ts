@@ -31,7 +31,8 @@ export const GetDashboardSummaryResponse = zod.object({
 })),
   "active_profiles": zod.number(),
   "total_citations": zod.number(),
-  "open_gap_events": zod.number()
+  "open_gap_events": zod.number(),
+  "stale_count": zod.number()
 })
 
 
@@ -65,6 +66,48 @@ export const GetRecentActivityResponseItem = zod.object({
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
 })
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
+
+
+/**
+ * @summary Suggest tier, rationale template, and authority IDs for an event type
+ */
+export const GetIntelligenceSuggestionQueryParams = zod.object({
+  "event_type": zod.coerce.string().describe('The DeFi event type to classify (e.g. swap, staking_reward, airdrop)'),
+  "protocol": zod.coerce.string().optional().describe('Optional protocol slug (e.g. uniswap_v3) for context'),
+  "chain": zod.coerce.string().optional().describe('Optional chain slug (e.g. ethereum) for context')
+})
+
+export const GetIntelligenceSuggestionResponse = zod.object({
+  "event_type": zod.string(),
+  "suggested_tier": zod.enum(['will', 'should', 'more_likely_than_not', 'substantial_authority', 'reasonable_basis']),
+  "confidence_basis": zod.string(),
+  "rationale_template": zod.string(),
+  "suggested_authority_ids": zod.array(zod.string()),
+  "citations_seeded": zod.number()
+})
+
+
+/**
+ * @summary List all stale positions (reasonable_basis, >180 days, not superseded)
+ */
+export const GetStalePositionsResponse = zod.object({
+  "stale_count": zod.number(),
+  "items": zod.array(zod.object({
+  "id": zod.string(),
+  "tx_id": zod.string().nullish(),
+  "wallet_id": zod.string().nullish(),
+  "event_type": zod.string(),
+  "classification": zod.string(),
+  "tier": zod.string(),
+  "rationale": zod.string(),
+  "profile_id": zod.string().nullish(),
+  "requires_review": zod.boolean(),
+  "reviewer_signoff_at": zod.string().nullish(),
+  "created_at": zod.string(),
+  "days_since_classification": zod.number(),
+  "is_stale": zod.boolean()
+}))
+})
 
 
 /**

@@ -7,11 +7,13 @@ import profilesRouter from "./profiles";
 import exportRouter from "./export";
 import chainsRouter from "./chains";
 import submissionsRouter from "./submissions";
+import intelligenceRouter from "./intelligence";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(dashboardRouter);
+router.use(intelligenceRouter);
 router.use(positionsRouter);
 router.use(citationsRouter);
 router.use(profilesRouter);

@@ -2,3 +2,6 @@
 - [CSS import order](css-import-order.md) — Google Fonts @import url() must precede @import 'tailwindcss' in index.css or PostCSS errors
 - [Express route ordering](express-route-ordering.md) — static paths (/review-queue, /batch-signoff, /tier-suggestion) must be declared before parameterized routes (/:id) in the same router
 - [Stale flag pattern](stale-flag.md) — is_stale is computed dynamically at serialization time (reasonable_basis + >180 days + no superseded_by); never stored in DB
+- [Orval naming conflicts](orval-naming-conflicts.md) — inline anonymous request bodies generate same name in api.ts (Zod) and types/ (TS); fix by extracting to named $ref schemas in OpenAPI
+- [DB seeding approach](db-seeding.md) — Node --experimental-strip-types cannot resolve extensionless ESM imports from workspace packages; use psql direct SQL for seeding instead
+- [Authority citation UUIDs](authority-citation-uuids.md) — 6 IRS citations seeded with fixed UUIDs aa000001-0000-0000-0000-00000000000{1-6}; intelligence engine depends on these being present

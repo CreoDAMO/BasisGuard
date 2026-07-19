@@ -36,9 +36,11 @@ import type {
   ErrorResponse,
   GetAuditPackageParams,
   GetCpaHandoffParams,
+  GetIntelligenceSuggestionParams,
   GetRecentActivityParams,
   GetTierSuggestionParams,
   HealthStatus,
+  IntelligenceSuggestion,
   ListCitationsParams,
   ListPositionsParams,
   ListProfilesParams,
@@ -60,6 +62,7 @@ import type {
   ReviewApprovalInput,
   ReviewRejectionInput,
   SignoffInput,
+  StalePositionList,
   Submission,
   TierSuggestion,
   TreatmentProfile
@@ -318,6 +321,167 @@ export function useGetRecentActivity<TData = Awaited<ReturnType<typeof getRecent
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRecentActivityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetIntelligenceSuggestionUrl = (params: GetIntelligenceSuggestionParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/intelligence/suggest?${stringifiedParams}` : `/api/intelligence/suggest`
+}
+
+/**
+ * @summary Suggest tier, rationale template, and authority IDs for an event type
+ */
+export const getIntelligenceSuggestion = async (params: GetIntelligenceSuggestionParams, options?: RequestInit): Promise<IntelligenceSuggestion> => {
+
+  return customFetch<IntelligenceSuggestion>(getGetIntelligenceSuggestionUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIntelligenceSuggestionQueryKey = (params?: GetIntelligenceSuggestionParams,) => {
+    return [
+    `/api/intelligence/suggest`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetIntelligenceSuggestionQueryOptions = <TData = Awaited<ReturnType<typeof getIntelligenceSuggestion>>, TError = ErrorType<unknown>>(params: GetIntelligenceSuggestionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIntelligenceSuggestion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIntelligenceSuggestionQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIntelligenceSuggestion>>> = ({ signal }) => getIntelligenceSuggestion(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIntelligenceSuggestion>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetIntelligenceSuggestionQueryResult = NonNullable<Awaited<ReturnType<typeof getIntelligenceSuggestion>>>
+export type GetIntelligenceSuggestionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Suggest tier, rationale template, and authority IDs for an event type
+ */
+
+export function useGetIntelligenceSuggestion<TData = Awaited<ReturnType<typeof getIntelligenceSuggestion>>, TError = ErrorType<unknown>>(
+ params: GetIntelligenceSuggestionParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getIntelligenceSuggestion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetIntelligenceSuggestionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStalePositionsUrl = () => {
+
+
+
+
+  return `/api/intelligence/stale`
+}
+
+/**
+ * @summary List all stale positions (reasonable_basis, >180 days, not superseded)
+ */
+export const getStalePositions = async ( options?: RequestInit): Promise<StalePositionList> => {
+
+  return customFetch<StalePositionList>(getGetStalePositionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStalePositionsQueryKey = () => {
+    return [
+    `/api/intelligence/stale`
+    ] as const;
+    }
+
+
+export const getGetStalePositionsQueryOptions = <TData = Awaited<ReturnType<typeof getStalePositions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStalePositions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStalePositionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStalePositions>>> = ({ signal }) => getStalePositions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStalePositions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStalePositionsQueryResult = NonNullable<Awaited<ReturnType<typeof getStalePositions>>>
+export type GetStalePositionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all stale positions (reasonable_basis, >180 days, not superseded)
+ */
+
+export function useGetStalePositions<TData = Awaited<ReturnType<typeof getStalePositions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStalePositions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStalePositionsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
