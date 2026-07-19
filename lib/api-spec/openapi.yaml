@@ -20,6 +20,10 @@ tags:
     description: Treatment profile operations
   - name: export
     description: Evidence export operations
+  - name: chains
+    description: Chain and protocol registry
+  - name: submissions
+    description: Self-service chain/protocol onboarding submissions
 
 paths:
   /healthz:
@@ -587,6 +591,287 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommentLetter"
 
+  # ── Chains ───────────────────────────────────────────────────────────────────
+  /chains:
+    get:
+      operationId: listChains
+      tags: [chains]
+      summary: List all supported chains
+      responses:
+        "200":
+          description: Chain list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Chain"
+    post:
+      operationId: createChain
+      tags: [chains]
+      summary: Add a chain directly (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChainInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chain"
+
+  /chains/{id}:
+    get:
+      operationId: getChain
+      tags: [chains]
+      summary: Get chain with its protocols
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Chain with protocols
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChainDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /protocols:
+    get:
+      operationId: listProtocols
+      tags: [chains]
+      summary: List all protocol adapters
+      parameters:
+        - name: chain_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Protocol list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Protocol"
+    post:
+      operationId: createProtocol
+      tags: [chains]
+      summary: Add a protocol adapter directly (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProtocolInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protocol"
+
+  /protocols/{id}:
+    get:
+      operationId: getProtocol
+      tags: [chains]
+      summary: Get a protocol adapter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Protocol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Protocol"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Submissions ───────────────────────────────────────────────────────────────
+  /submit/chain:
+    post:
+      operationId: submitChain
+      tags: [submissions]
+      summary: CPA/partner submits a chain for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChainSubmissionInput"
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /submit/protocol:
+    post:
+      operationId: submitProtocol
+      tags: [submissions]
+      summary: CPA/partner submits a protocol adapter for review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProtocolSubmissionInput"
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /admin/submissions:
+    get:
+      operationId: listSubmissions
+      tags: [submissions]
+      summary: List all submissions (admin)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, all]
+            default: pending
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Submission"
+
+  /admin/submissions/chain/{id}/approve:
+    patch:
+      operationId: approveChainSubmission
+      tags: [submissions]
+      summary: Approve a chain submission — creates the Chain record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewApprovalInput"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /admin/submissions/chain/{id}/reject:
+    patch:
+      operationId: rejectChainSubmission
+      tags: [submissions]
+      summary: Reject a chain submission
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewRejectionInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /admin/submissions/protocol/{id}/approve:
+    patch:
+      operationId: approveProtocolSubmission
+      tags: [submissions]
+      summary: Approve a protocol submission — creates the Protocol record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewApprovalInput"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /admin/submissions/protocol/{id}/reject:
+    patch:
+      operationId: rejectProtocolSubmission
+      tags: [submissions]
+      summary: Reject a protocol submission
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewRejectionInput"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
   /export/cpa-handoff:
     get:
       operationId: getCpaHandoff
@@ -848,6 +1133,9 @@ components:
           type: ["string", "null"]
         reviewer_signoff_at:
           type: ["string", "null"]
+        chain_id:
+          type: ["string", "null"]
+          description: Chain this position is associated with, if known
         superseded_by:
           type: ["string", "null"]
         created_at:
@@ -1266,3 +1554,217 @@ components:
         - generated_at
         - total_positions
         - entries
+
+    # ── Chain & Protocol ───────────────────────────────────────────────────────
+    Chain:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        is_l2:
+          type: boolean
+        parent_chain_id:
+          type: ["string", "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+      required:
+        - id
+        - name
+        - slug
+        - is_l2
+        - created_at
+
+    ChainInput:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        is_l2:
+          type: boolean
+        parent_chain_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+      required:
+        - name
+        - slug
+
+    Protocol:
+      type: object
+      properties:
+        id:
+          type: string
+        chain_id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        contract_addresses:
+          type: object
+          additionalProperties: true
+        adapter_version:
+          type: ["string", "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+      required:
+        - id
+        - chain_id
+        - name
+        - slug
+        - created_at
+
+    ProtocolInput:
+      type: object
+      properties:
+        chain_id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        contract_addresses:
+          type: object
+          additionalProperties: true
+        adapter_version:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+      required:
+        - chain_id
+        - name
+        - slug
+
+    ChainDetail:
+      allOf:
+        - $ref: "#/components/schemas/Chain"
+        - type: object
+          properties:
+            protocols:
+              type: array
+              items:
+                $ref: "#/components/schemas/Protocol"
+          required:
+            - protocols
+
+    # ── Submissions ────────────────────────────────────────────────────────────
+    Submission:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [chain, protocol]
+        submitted_by:
+          type: string
+        submitter_credential:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        reviewed_by:
+          type: ["string", "null"]
+        reviewed_at:
+          type: ["string", "null"]
+        rejection_reason:
+          type: ["string", "null"]
+        created_at:
+          type: string
+      required:
+        - id
+        - type
+        - submitted_by
+        - submitter_credential
+        - name
+        - slug
+        - status
+        - created_at
+
+    ChainSubmissionInput:
+      type: object
+      properties:
+        submitted_by:
+          type: string
+        submitter_credential:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        is_l2:
+          type: boolean
+        parent_chain_slug:
+          type: string
+        rpc_url:
+          type: string
+        explorer_url:
+          type: string
+        native_token:
+          type: string
+      required:
+        - submitted_by
+        - submitter_credential
+        - name
+        - slug
+
+    ReviewApprovalInput:
+      type: object
+      properties:
+        reviewed_by:
+          type: string
+
+    ReviewRejectionInput:
+      type: object
+      properties:
+        reviewed_by:
+          type: string
+        rejection_reason:
+          type: string
+
+    ProtocolSubmissionInput:
+      type: object
+      properties:
+        submitted_by:
+          type: string
+        submitter_credential:
+          type: string
+        chain_slug:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        contract_addresses:
+          type: object
+          additionalProperties: true
+        adapter_version:
+          type: string
+        documentation_url:
+          type: string
+        notes:
+          type: string
+      required:
+        - submitted_by
+        - submitter_credential
+        - chain_slug
+        - name
+        - slug

@@ -30,6 +30,11 @@ export interface PositionRecord {
   reviewer_credential?: string | null;
   /** @nullable */
   reviewer_signoff_at?: string | null;
+  /**
+     * Chain this position is associated with, if known
+     * @nullable
+     */
+  chain_id?: string | null;
   /** @nullable */
   superseded_by?: string | null;
   created_at: string;

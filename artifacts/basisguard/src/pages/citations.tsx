@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Search, BookMarked, ExternalLink, Plus } from "lucide-react";
 import { format } from "date-fns";
-import { CitationInputType, CitationInputAuthorityStrength } from "@workspace/api-client-react/src/generated/api.schemas";
+import { CitationInputType, CitationInputAuthorityStrength } from "@workspace/api-client-react";
 
 export default function CitationsPage() {
   const queryClient = useQueryClient();

@@ -64,8 +64,8 @@ export default function ExportPage() {
   const isRedacted = variant === "audit-redacted";
 
   const { refetch: refetchAudit } = useGetAuditPackage(
-    { taxYear, redactPii: isRedacted },
-    { query: { enabled: false, queryKey: getGetAuditPackageQueryKey({ taxYear, redactPii: isRedacted }) } }
+    { tax_year: taxYear, redact_pii: isRedacted },
+    { query: { enabled: false, queryKey: getGetAuditPackageQueryKey({ tax_year: taxYear, redact_pii: isRedacted }) } }
   );
 
   const { refetch: refetchComment } = useGetCommentLetter({
@@ -73,8 +73,8 @@ export default function ExportPage() {
   });
 
   const { refetch: refetchCpa } = useGetCpaHandoff(
-    { taxYear },
-    { query: { enabled: false, queryKey: getGetCpaHandoffQueryKey({ taxYear }) } }
+    { tax_year: taxYear },
+    { query: { enabled: false, queryKey: getGetCpaHandoffQueryKey({ tax_year: taxYear }) } }
   );
 
   const handleExport = async () => {

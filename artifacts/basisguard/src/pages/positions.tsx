@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useListPositions } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,17 +11,23 @@ import { format } from "date-fns";
 import { Link, useLocation } from "wouter";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { Search, Filter, AlertCircle, CheckCircle2, Clock } from "lucide-react";
-import { PositionRecordTier } from "@workspace/api-client-react/src/generated/api.schemas";
+import { PositionRecordTier } from "@workspace/api-client-react";
+
+interface Chain { id: string; name: string; slug: string; }
 
 export default function PositionsPage() {
   const [, setLocation] = useLocation();
   const [tier, setTier] = useState<PositionRecordTier | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "requires_review" | "signed_off">("all");
-  
+  const [chainFilter, setChainFilter] = useState<string>("all");
+
+  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch("/api/chains").then(r => r.json()) });
+
   const queryParams: any = {};
   if (tier !== "all") queryParams.tier = tier;
   if (statusFilter === "requires_review") queryParams.requires_review = true;
   if (statusFilter === "signed_off") queryParams.requires_review = false;
+  if (chainFilter !== "all") queryParams.chain_id = chainFilter;
 
   const { data: positionsData, isLoading } = useListPositions(queryParams);
 
@@ -42,7 +49,7 @@ export default function PositionsPage() {
               className="pl-9 bg-background/50 border-border/50"
             />
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3 flex-wrap">
             <Select value={tier} onValueChange={(val: any) => setTier(val)}>
               <SelectTrigger className="w-[180px] bg-background/50 border-border/50">
                 <div className="flex items-center gap-2">
@@ -68,6 +75,16 @@ export default function PositionsPage() {
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="requires_review">Requires Review</SelectItem>
                 <SelectItem value="signed_off">Signed Off</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={chainFilter} onValueChange={setChainFilter}>
+              <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
+                <SelectValue placeholder="Chain" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Chains</SelectItem>
+                {chains?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

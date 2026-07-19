@@ -51,6 +51,7 @@ function serializePosition(p: typeof positionRecordsTable.$inferSelect) {
     rationale: p.rationale,
     profile_id: p.profileId ?? null,
     profile_version: p.profileVersion ?? null,
+    chain_id: p.chainId ?? null,
     requires_review: p.requiresReview,
     reviewer_id: p.reviewerId ?? null,
     reviewer_name: p.reviewerName ?? null,
@@ -70,6 +71,7 @@ router.get("/positions", async (req, res): Promise<void> => {
     return;
   }
   const { tier, requires_review, event_type, classification, profile_id, limit = 50, offset = 0 } = parsed.data;
+  const chain_id = req.query.chain_id as string | undefined;
 
   const conditions = [];
   if (tier) conditions.push(eq(positionRecordsTable.tier, tier));
@@ -77,6 +79,7 @@ router.get("/positions", async (req, res): Promise<void> => {
   if (event_type) conditions.push(eq(positionRecordsTable.eventType, event_type));
   if (classification) conditions.push(eq(positionRecordsTable.classification, classification));
   if (profile_id) conditions.push(eq(positionRecordsTable.profileId, profile_id));
+  if (chain_id) conditions.push(eq(positionRecordsTable.chainId, chain_id));
 
   const [items, totalRows] = await Promise.all([
     db.select().from(positionRecordsTable)

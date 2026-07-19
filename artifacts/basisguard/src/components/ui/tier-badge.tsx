@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { PositionRecordTier } from "@workspace/api-client-react/src/generated/api.schemas";
+import { PositionRecordTier } from "@workspace/api-client-react";
 
 export function TierBadge({ tier, className = "" }: { tier: PositionRecordTier | string, className?: string }) {
   const getTierClass = () => {

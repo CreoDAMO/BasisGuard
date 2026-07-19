@@ -223,6 +223,11 @@ export interface PositionRecord {
   reviewer_credential?: string | null;
   /** @nullable */
   reviewer_signoff_at?: string | null;
+  /**
+     * Chain this position is associated with, if known
+     * @nullable
+     */
+  chain_id?: string | null;
   /** @nullable */
   superseded_by?: string | null;
   created_at: string;
@@ -433,6 +438,131 @@ export interface PatternReport {
   entries: PatternReportEntry[];
 }
 
+export type ChainMetadata = { [key: string]: unknown };
+
+export interface Chain {
+  id: string;
+  name: string;
+  slug: string;
+  is_l2: boolean;
+  /** @nullable */
+  parent_chain_id?: string | null;
+  metadata?: ChainMetadata;
+  created_at: string;
+}
+
+export type ChainInputMetadata = { [key: string]: unknown };
+
+export interface ChainInput {
+  name: string;
+  slug: string;
+  is_l2?: boolean;
+  parent_chain_id?: string;
+  metadata?: ChainInputMetadata;
+}
+
+export type ProtocolContractAddresses = { [key: string]: unknown };
+
+export type ProtocolMetadata = { [key: string]: unknown };
+
+export interface Protocol {
+  id: string;
+  chain_id: string;
+  name: string;
+  slug: string;
+  contract_addresses?: ProtocolContractAddresses;
+  /** @nullable */
+  adapter_version?: string | null;
+  metadata?: ProtocolMetadata;
+  created_at: string;
+}
+
+export type ProtocolInputContractAddresses = { [key: string]: unknown };
+
+export type ProtocolInputMetadata = { [key: string]: unknown };
+
+export interface ProtocolInput {
+  chain_id: string;
+  name: string;
+  slug: string;
+  contract_addresses?: ProtocolInputContractAddresses;
+  adapter_version?: string;
+  metadata?: ProtocolInputMetadata;
+}
+
+export type ChainDetail = Chain & {
+  protocols: Protocol[];
+};
+
+export type SubmissionType = typeof SubmissionType[keyof typeof SubmissionType];
+
+
+export const SubmissionType = {
+  chain: 'chain',
+  protocol: 'protocol',
+} as const;
+
+export type SubmissionStatus = typeof SubmissionStatus[keyof typeof SubmissionStatus];
+
+
+export const SubmissionStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface Submission {
+  id: string;
+  type: SubmissionType;
+  submitted_by: string;
+  submitter_credential: string;
+  name: string;
+  slug: string;
+  status: SubmissionStatus;
+  /** @nullable */
+  reviewed_by?: string | null;
+  /** @nullable */
+  reviewed_at?: string | null;
+  /** @nullable */
+  rejection_reason?: string | null;
+  created_at: string;
+}
+
+export interface ChainSubmissionInput {
+  submitted_by: string;
+  submitter_credential: string;
+  name: string;
+  slug: string;
+  is_l2?: boolean;
+  parent_chain_slug?: string;
+  rpc_url?: string;
+  explorer_url?: string;
+  native_token?: string;
+}
+
+export interface ReviewApprovalInput {
+  reviewed_by?: string;
+}
+
+export interface ReviewRejectionInput {
+  reviewed_by?: string;
+  rejection_reason?: string;
+}
+
+export type ProtocolSubmissionInputContractAddresses = { [key: string]: unknown };
+
+export interface ProtocolSubmissionInput {
+  submitted_by: string;
+  submitter_credential: string;
+  chain_slug: string;
+  name: string;
+  slug: string;
+  contract_addresses?: ProtocolSubmissionInputContractAddresses;
+  adapter_version?: string;
+  documentation_url?: string;
+  notes?: string;
+}
+
 export type GetRecentActivityParams = {
 limit?: number;
 };
@@ -511,6 +641,24 @@ wallet_id?: string;
  */
 redact_pii?: boolean;
 };
+
+export type ListProtocolsParams = {
+chain_id?: string;
+};
+
+export type ListSubmissionsParams = {
+status?: ListSubmissionsStatus;
+};
+
+export type ListSubmissionsStatus = typeof ListSubmissionsStatus[keyof typeof ListSubmissionsStatus];
+
+
+export const ListSubmissionsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  all: 'all',
+} as const;
 
 export type GetCpaHandoffParams = {
 tax_year: number;

@@ -59,6 +59,7 @@ export const GetRecentActivityResponseItem = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -98,6 +99,7 @@ export const ListPositionsResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -139,6 +141,7 @@ export const CreatePositionResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -163,6 +166,7 @@ export const GetReviewQueueResponseItem = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -235,6 +239,7 @@ export const GetPositionResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -292,6 +297,7 @@ export const UpdatePositionResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -326,6 +332,7 @@ export const SignOffPositionResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -367,6 +374,7 @@ export const SupersedePositionResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -398,6 +406,7 @@ export const GetPositionHistoryResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -667,6 +676,7 @@ export const GetAuditPackageResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
@@ -733,6 +743,326 @@ export const GetCommentLetterResponse = zod.object({
 
 
 /**
+ * @summary List all supported chains
+ */
+export const ListChainsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "is_l2": zod.boolean(),
+  "parent_chain_id": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+})
+export const ListChainsResponse = zod.array(ListChainsResponseItem)
+
+
+/**
+ * @summary Add a chain directly (admin)
+ */
+export const CreateChainBody = zod.object({
+  "name": zod.string(),
+  "slug": zod.string(),
+  "is_l2": zod.boolean().optional(),
+  "parent_chain_id": zod.string().optional(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const CreateChainResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "is_l2": zod.boolean(),
+  "parent_chain_id": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary Get chain with its protocols
+ */
+export const GetChainParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetChainResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "is_l2": zod.boolean(),
+  "parent_chain_id": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+}).and(zod.object({
+  "protocols": zod.array(zod.object({
+  "id": zod.string(),
+  "chain_id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "contract_addresses": zod.record(zod.string(), zod.unknown()).optional(),
+  "adapter_version": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+}))
+}))
+
+
+/**
+ * @summary List all protocol adapters
+ */
+export const ListProtocolsQueryParams = zod.object({
+  "chain_id": zod.coerce.string().optional()
+})
+
+export const ListProtocolsResponseItem = zod.object({
+  "id": zod.string(),
+  "chain_id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "contract_addresses": zod.record(zod.string(), zod.unknown()).optional(),
+  "adapter_version": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+})
+export const ListProtocolsResponse = zod.array(ListProtocolsResponseItem)
+
+
+/**
+ * @summary Add a protocol adapter directly (admin)
+ */
+export const CreateProtocolBody = zod.object({
+  "chain_id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "contract_addresses": zod.record(zod.string(), zod.unknown()).optional(),
+  "adapter_version": zod.string().optional(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const CreateProtocolResponse = zod.object({
+  "id": zod.string(),
+  "chain_id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "contract_addresses": zod.record(zod.string(), zod.unknown()).optional(),
+  "adapter_version": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary Get a protocol adapter
+ */
+export const GetProtocolParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetProtocolResponse = zod.object({
+  "id": zod.string(),
+  "chain_id": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "contract_addresses": zod.record(zod.string(), zod.unknown()).optional(),
+  "adapter_version": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()).optional(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary CPA/partner submits a chain for review
+ */
+export const SubmitChainBody = zod.object({
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "is_l2": zod.boolean().optional(),
+  "parent_chain_slug": zod.string().optional(),
+  "rpc_url": zod.string().optional(),
+  "explorer_url": zod.string().optional(),
+  "native_token": zod.string().optional()
+})
+
+export const SubmitChainResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary CPA/partner submits a protocol adapter for review
+ */
+export const SubmitProtocolBody = zod.object({
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "chain_slug": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "contract_addresses": zod.record(zod.string(), zod.unknown()).optional(),
+  "adapter_version": zod.string().optional(),
+  "documentation_url": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const SubmitProtocolResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary List all submissions (admin)
+ */
+export const listSubmissionsQueryStatusDefault = `pending`;
+
+export const ListSubmissionsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected', 'all']).default(listSubmissionsQueryStatusDefault)
+})
+
+export const ListSubmissionsResponseItem = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+export const ListSubmissionsResponse = zod.array(ListSubmissionsResponseItem)
+
+
+/**
+ * @summary Approve a chain submission — creates the Chain record
+ */
+export const ApproveChainSubmissionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ApproveChainSubmissionBody = zod.object({
+  "reviewed_by": zod.string().optional()
+})
+
+export const ApproveChainSubmissionResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary Reject a chain submission
+ */
+export const RejectChainSubmissionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RejectChainSubmissionBody = zod.object({
+  "reviewed_by": zod.string().optional(),
+  "rejection_reason": zod.string().optional()
+})
+
+export const RejectChainSubmissionResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary Approve a protocol submission — creates the Protocol record
+ */
+export const ApproveProtocolSubmissionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ApproveProtocolSubmissionBody = zod.object({
+  "reviewed_by": zod.string().optional()
+})
+
+export const ApproveProtocolSubmissionResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+
+
+/**
+ * @summary Reject a protocol submission
+ */
+export const RejectProtocolSubmissionParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RejectProtocolSubmissionBody = zod.object({
+  "reviewed_by": zod.string().optional(),
+  "rejection_reason": zod.string().optional()
+})
+
+export const RejectProtocolSubmissionResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['chain', 'protocol']),
+  "submitted_by": zod.string(),
+  "submitter_credential": zod.string(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.string().nullish(),
+  "rejection_reason": zod.string().nullish(),
+  "created_at": zod.string()
+})
+
+
+/**
  * @summary Generate CPA hand-off package with summary and open action items
  */
 export const GetCpaHandoffQueryParams = zod.object({
@@ -765,6 +1095,7 @@ export const GetCpaHandoffResponse = zod.object({
   "reviewer_name": zod.string().nullish(),
   "reviewer_credential": zod.string().nullish(),
   "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
   "superseded_by": zod.string().nullish(),
   "created_at": zod.string(),
   "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')

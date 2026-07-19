@@ -1,5 +1,6 @@
 import { pgTable, text, uuid, timestamp, boolean } from "drizzle-orm/pg-core";
 import { treatmentProfilesTable } from "./treatment_profiles";
+import { chainsTable } from "./chains";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +14,7 @@ export const positionRecordsTable = pgTable("position_records", {
   rationale: text("rationale").notNull(),
   profileId: uuid("profile_id").references(() => treatmentProfilesTable.id),
   profileVersion: text("profile_version"),
+  chainId: uuid("chain_id").references(() => chainsTable.id), // nullable — legacy records have no chain
   requiresReview: boolean("requires_review").notNull().default(false),
   reviewerId: text("reviewer_id"),
   reviewerName: text("reviewer_name"),

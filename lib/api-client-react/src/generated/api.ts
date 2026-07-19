@@ -24,6 +24,10 @@ import type {
   AuthorityCitation,
   BatchSignoffInput,
   BatchSignoffResult,
+  Chain,
+  ChainDetail,
+  ChainInput,
+  ChainSubmissionInput,
   CitationInput,
   CitationUpdate,
   CommentLetter,
@@ -38,6 +42,8 @@ import type {
   ListCitationsParams,
   ListPositionsParams,
   ListProfilesParams,
+  ListProtocolsParams,
+  ListSubmissionsParams,
   PatternReport,
   PositionDetail,
   PositionHistory,
@@ -48,7 +54,13 @@ import type {
   ProfileDelta,
   ProfileInput,
   ProfileUpdate,
+  Protocol,
+  ProtocolInput,
+  ProtocolSubmissionInput,
+  ReviewApprovalInput,
+  ReviewRejectionInput,
   SignoffInput,
+  Submission,
   TierSuggestion,
   TreatmentProfile
 } from './api.schemas';
@@ -2076,6 +2088,977 @@ export function useGetCommentLetter<TData = Awaited<ReturnType<typeof getComment
 
 
 
+
+export const getListChainsUrl = () => {
+
+
+
+
+  return `/api/chains`
+}
+
+/**
+ * @summary List all supported chains
+ */
+export const listChains = async ( options?: RequestInit): Promise<Chain[]> => {
+
+  return customFetch<Chain[]>(getListChainsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListChainsQueryKey = () => {
+    return [
+    `/api/chains`
+    ] as const;
+    }
+
+
+export const getListChainsQueryOptions = <TData = Awaited<ReturnType<typeof listChains>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listChains>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListChainsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listChains>>> = ({ signal }) => listChains({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listChains>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListChainsQueryResult = NonNullable<Awaited<ReturnType<typeof listChains>>>
+export type ListChainsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all supported chains
+ */
+
+export function useListChains<TData = Awaited<ReturnType<typeof listChains>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listChains>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListChainsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateChainUrl = () => {
+
+
+
+
+  return `/api/chains`
+}
+
+/**
+ * @summary Add a chain directly (admin)
+ */
+export const createChain = async (chainInput: ChainInput, options?: RequestInit): Promise<Chain> => {
+
+  return customFetch<Chain>(getCreateChainUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chainInput)
+  }
+);}
+
+
+
+
+
+export const getCreateChainMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createChain>>, TError,{data: BodyType<ChainInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createChain>>, TError,{data: BodyType<ChainInput>}, TContext> => {
+
+const mutationKey = ['createChain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createChain>>, {data: BodyType<ChainInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createChain(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateChainMutationResult = NonNullable<Awaited<ReturnType<typeof createChain>>>
+    export type CreateChainMutationBody = BodyType<ChainInput>
+    export type CreateChainMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a chain directly (admin)
+ */
+export const useCreateChain = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createChain>>, TError,{data: BodyType<ChainInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createChain>>,
+        TError,
+        {data: BodyType<ChainInput>},
+        TContext
+      > => {
+      return useMutation(getCreateChainMutationOptions(options));
+    }
+
+export const getGetChainUrl = (id: string,) => {
+
+
+
+
+  return `/api/chains/${id}`
+}
+
+/**
+ * @summary Get chain with its protocols
+ */
+export const getChain = async (id: string, options?: RequestInit): Promise<ChainDetail> => {
+
+  return customFetch<ChainDetail>(getGetChainUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetChainQueryKey = (id: string,) => {
+    return [
+    `/api/chains/${id}`
+    ] as const;
+    }
+
+
+export const getGetChainQueryOptions = <TData = Awaited<ReturnType<typeof getChain>>, TError = ErrorType<ErrorResponse>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChain>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetChainQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getChain>>> = ({ signal }) => getChain(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getChain>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetChainQueryResult = NonNullable<Awaited<ReturnType<typeof getChain>>>
+export type GetChainQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get chain with its protocols
+ */
+
+export function useGetChain<TData = Awaited<ReturnType<typeof getChain>>, TError = ErrorType<ErrorResponse>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChain>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetChainQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListProtocolsUrl = (params?: ListProtocolsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/protocols?${stringifiedParams}` : `/api/protocols`
+}
+
+/**
+ * @summary List all protocol adapters
+ */
+export const listProtocols = async (params?: ListProtocolsParams, options?: RequestInit): Promise<Protocol[]> => {
+
+  return customFetch<Protocol[]>(getListProtocolsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProtocolsQueryKey = (params?: ListProtocolsParams,) => {
+    return [
+    `/api/protocols`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListProtocolsQueryOptions = <TData = Awaited<ReturnType<typeof listProtocols>>, TError = ErrorType<unknown>>(params?: ListProtocolsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProtocols>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProtocolsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProtocols>>> = ({ signal }) => listProtocols(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProtocols>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProtocolsQueryResult = NonNullable<Awaited<ReturnType<typeof listProtocols>>>
+export type ListProtocolsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all protocol adapters
+ */
+
+export function useListProtocols<TData = Awaited<ReturnType<typeof listProtocols>>, TError = ErrorType<unknown>>(
+ params?: ListProtocolsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProtocols>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProtocolsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateProtocolUrl = () => {
+
+
+
+
+  return `/api/protocols`
+}
+
+/**
+ * @summary Add a protocol adapter directly (admin)
+ */
+export const createProtocol = async (protocolInput: ProtocolInput, options?: RequestInit): Promise<Protocol> => {
+
+  return customFetch<Protocol>(getCreateProtocolUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(protocolInput)
+  }
+);}
+
+
+
+
+
+export const getCreateProtocolMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProtocol>>, TError,{data: BodyType<ProtocolInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createProtocol>>, TError,{data: BodyType<ProtocolInput>}, TContext> => {
+
+const mutationKey = ['createProtocol'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProtocol>>, {data: BodyType<ProtocolInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createProtocol(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateProtocolMutationResult = NonNullable<Awaited<ReturnType<typeof createProtocol>>>
+    export type CreateProtocolMutationBody = BodyType<ProtocolInput>
+    export type CreateProtocolMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a protocol adapter directly (admin)
+ */
+export const useCreateProtocol = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProtocol>>, TError,{data: BodyType<ProtocolInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createProtocol>>,
+        TError,
+        {data: BodyType<ProtocolInput>},
+        TContext
+      > => {
+      return useMutation(getCreateProtocolMutationOptions(options));
+    }
+
+export const getGetProtocolUrl = (id: string,) => {
+
+
+
+
+  return `/api/protocols/${id}`
+}
+
+/**
+ * @summary Get a protocol adapter
+ */
+export const getProtocol = async (id: string, options?: RequestInit): Promise<Protocol> => {
+
+  return customFetch<Protocol>(getGetProtocolUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProtocolQueryKey = (id: string,) => {
+    return [
+    `/api/protocols/${id}`
+    ] as const;
+    }
+
+
+export const getGetProtocolQueryOptions = <TData = Awaited<ReturnType<typeof getProtocol>>, TError = ErrorType<ErrorResponse>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProtocol>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProtocolQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProtocol>>> = ({ signal }) => getProtocol(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProtocol>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProtocolQueryResult = NonNullable<Awaited<ReturnType<typeof getProtocol>>>
+export type GetProtocolQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get a protocol adapter
+ */
+
+export function useGetProtocol<TData = Awaited<ReturnType<typeof getProtocol>>, TError = ErrorType<ErrorResponse>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProtocol>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProtocolQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitChainUrl = () => {
+
+
+
+
+  return `/api/submit/chain`
+}
+
+/**
+ * @summary CPA/partner submits a chain for review
+ */
+export const submitChain = async (chainSubmissionInput: ChainSubmissionInput, options?: RequestInit): Promise<Submission> => {
+
+  return customFetch<Submission>(getSubmitChainUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(chainSubmissionInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitChainMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitChain>>, TError,{data: BodyType<ChainSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitChain>>, TError,{data: BodyType<ChainSubmissionInput>}, TContext> => {
+
+const mutationKey = ['submitChain'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitChain>>, {data: BodyType<ChainSubmissionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitChain(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitChainMutationResult = NonNullable<Awaited<ReturnType<typeof submitChain>>>
+    export type SubmitChainMutationBody = BodyType<ChainSubmissionInput>
+    export type SubmitChainMutationError = ErrorType<unknown>
+
+    /**
+ * @summary CPA/partner submits a chain for review
+ */
+export const useSubmitChain = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitChain>>, TError,{data: BodyType<ChainSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitChain>>,
+        TError,
+        {data: BodyType<ChainSubmissionInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitChainMutationOptions(options));
+    }
+
+export const getSubmitProtocolUrl = () => {
+
+
+
+
+  return `/api/submit/protocol`
+}
+
+/**
+ * @summary CPA/partner submits a protocol adapter for review
+ */
+export const submitProtocol = async (protocolSubmissionInput: ProtocolSubmissionInput, options?: RequestInit): Promise<Submission> => {
+
+  return customFetch<Submission>(getSubmitProtocolUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(protocolSubmissionInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitProtocolMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitProtocol>>, TError,{data: BodyType<ProtocolSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitProtocol>>, TError,{data: BodyType<ProtocolSubmissionInput>}, TContext> => {
+
+const mutationKey = ['submitProtocol'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitProtocol>>, {data: BodyType<ProtocolSubmissionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitProtocol(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitProtocolMutationResult = NonNullable<Awaited<ReturnType<typeof submitProtocol>>>
+    export type SubmitProtocolMutationBody = BodyType<ProtocolSubmissionInput>
+    export type SubmitProtocolMutationError = ErrorType<unknown>
+
+    /**
+ * @summary CPA/partner submits a protocol adapter for review
+ */
+export const useSubmitProtocol = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitProtocol>>, TError,{data: BodyType<ProtocolSubmissionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitProtocol>>,
+        TError,
+        {data: BodyType<ProtocolSubmissionInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitProtocolMutationOptions(options));
+    }
+
+export const getListSubmissionsUrl = (params?: ListSubmissionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/submissions?${stringifiedParams}` : `/api/admin/submissions`
+}
+
+/**
+ * @summary List all submissions (admin)
+ */
+export const listSubmissions = async (params?: ListSubmissionsParams, options?: RequestInit): Promise<Submission[]> => {
+
+  return customFetch<Submission[]>(getListSubmissionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSubmissionsQueryKey = (params?: ListSubmissionsParams,) => {
+    return [
+    `/api/admin/submissions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSubmissionsQueryOptions = <TData = Awaited<ReturnType<typeof listSubmissions>>, TError = ErrorType<unknown>>(params?: ListSubmissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSubmissionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubmissions>>> = ({ signal }) => listSubmissions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSubmissions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSubmissionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSubmissions>>>
+export type ListSubmissionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all submissions (admin)
+ */
+
+export function useListSubmissions<TData = Awaited<ReturnType<typeof listSubmissions>>, TError = ErrorType<unknown>>(
+ params?: ListSubmissionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubmissions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSubmissionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveChainSubmissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/submissions/chain/${id}/approve`
+}
+
+/**
+ * @summary Approve a chain submission — creates the Chain record
+ */
+export const approveChainSubmission = async (id: string,
+    reviewApprovalInput: ReviewApprovalInput, options?: RequestInit): Promise<Submission> => {
+
+  return customFetch<Submission>(getApproveChainSubmissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewApprovalInput)
+  }
+);}
+
+
+
+
+
+export const getApproveChainSubmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveChainSubmission>>, TError,{id: string;data: BodyType<ReviewApprovalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveChainSubmission>>, TError,{id: string;data: BodyType<ReviewApprovalInput>}, TContext> => {
+
+const mutationKey = ['approveChainSubmission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveChainSubmission>>, {id: string;data: BodyType<ReviewApprovalInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveChainSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveChainSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof approveChainSubmission>>>
+    export type ApproveChainSubmissionMutationBody = BodyType<ReviewApprovalInput>
+    export type ApproveChainSubmissionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve a chain submission — creates the Chain record
+ */
+export const useApproveChainSubmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveChainSubmission>>, TError,{id: string;data: BodyType<ReviewApprovalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveChainSubmission>>,
+        TError,
+        {id: string;data: BodyType<ReviewApprovalInput>},
+        TContext
+      > => {
+      return useMutation(getApproveChainSubmissionMutationOptions(options));
+    }
+
+export const getRejectChainSubmissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/submissions/chain/${id}/reject`
+}
+
+/**
+ * @summary Reject a chain submission
+ */
+export const rejectChainSubmission = async (id: string,
+    reviewRejectionInput: ReviewRejectionInput, options?: RequestInit): Promise<Submission> => {
+
+  return customFetch<Submission>(getRejectChainSubmissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewRejectionInput)
+  }
+);}
+
+
+
+
+
+export const getRejectChainSubmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectChainSubmission>>, TError,{id: string;data: BodyType<ReviewRejectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectChainSubmission>>, TError,{id: string;data: BodyType<ReviewRejectionInput>}, TContext> => {
+
+const mutationKey = ['rejectChainSubmission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectChainSubmission>>, {id: string;data: BodyType<ReviewRejectionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectChainSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectChainSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof rejectChainSubmission>>>
+    export type RejectChainSubmissionMutationBody = BodyType<ReviewRejectionInput>
+    export type RejectChainSubmissionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject a chain submission
+ */
+export const useRejectChainSubmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectChainSubmission>>, TError,{id: string;data: BodyType<ReviewRejectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectChainSubmission>>,
+        TError,
+        {id: string;data: BodyType<ReviewRejectionInput>},
+        TContext
+      > => {
+      return useMutation(getRejectChainSubmissionMutationOptions(options));
+    }
+
+export const getApproveProtocolSubmissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/submissions/protocol/${id}/approve`
+}
+
+/**
+ * @summary Approve a protocol submission — creates the Protocol record
+ */
+export const approveProtocolSubmission = async (id: string,
+    reviewApprovalInput: ReviewApprovalInput, options?: RequestInit): Promise<Submission> => {
+
+  return customFetch<Submission>(getApproveProtocolSubmissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewApprovalInput)
+  }
+);}
+
+
+
+
+
+export const getApproveProtocolSubmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveProtocolSubmission>>, TError,{id: string;data: BodyType<ReviewApprovalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveProtocolSubmission>>, TError,{id: string;data: BodyType<ReviewApprovalInput>}, TContext> => {
+
+const mutationKey = ['approveProtocolSubmission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveProtocolSubmission>>, {id: string;data: BodyType<ReviewApprovalInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  approveProtocolSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveProtocolSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof approveProtocolSubmission>>>
+    export type ApproveProtocolSubmissionMutationBody = BodyType<ReviewApprovalInput>
+    export type ApproveProtocolSubmissionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve a protocol submission — creates the Protocol record
+ */
+export const useApproveProtocolSubmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveProtocolSubmission>>, TError,{id: string;data: BodyType<ReviewApprovalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveProtocolSubmission>>,
+        TError,
+        {id: string;data: BodyType<ReviewApprovalInput>},
+        TContext
+      > => {
+      return useMutation(getApproveProtocolSubmissionMutationOptions(options));
+    }
+
+export const getRejectProtocolSubmissionUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/submissions/protocol/${id}/reject`
+}
+
+/**
+ * @summary Reject a protocol submission
+ */
+export const rejectProtocolSubmission = async (id: string,
+    reviewRejectionInput: ReviewRejectionInput, options?: RequestInit): Promise<Submission> => {
+
+  return customFetch<Submission>(getRejectProtocolSubmissionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reviewRejectionInput)
+  }
+);}
+
+
+
+
+
+export const getRejectProtocolSubmissionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectProtocolSubmission>>, TError,{id: string;data: BodyType<ReviewRejectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectProtocolSubmission>>, TError,{id: string;data: BodyType<ReviewRejectionInput>}, TContext> => {
+
+const mutationKey = ['rejectProtocolSubmission'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectProtocolSubmission>>, {id: string;data: BodyType<ReviewRejectionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectProtocolSubmission(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectProtocolSubmissionMutationResult = NonNullable<Awaited<ReturnType<typeof rejectProtocolSubmission>>>
+    export type RejectProtocolSubmissionMutationBody = BodyType<ReviewRejectionInput>
+    export type RejectProtocolSubmissionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject a protocol submission
+ */
+export const useRejectProtocolSubmission = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectProtocolSubmission>>, TError,{id: string;data: BodyType<ReviewRejectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectProtocolSubmission>>,
+        TError,
+        {id: string;data: BodyType<ReviewRejectionInput>},
+        TContext
+      > => {
+      return useMutation(getRejectProtocolSubmissionMutationOptions(options));
+    }
 
 export const getGetCpaHandoffUrl = (params: GetCpaHandoffParams,) => {
   const normalizedParams = new URLSearchParams();

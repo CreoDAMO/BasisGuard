@@ -1,16 +1,30 @@
 import React from "react";
 import { useGetDashboardSummary, useGetRecentActivity } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { ShieldAlert, FileText, CheckCircle2, Bot, Layers, BookMarked, AlertCircle } from "lucide-react";
+import { ShieldAlert, FileText, CheckCircle2, Bot, Layers, BookMarked, AlertCircle, Network } from "lucide-react";
+
+interface Chain { id: string; name: string; slug: string; is_l2: boolean; }
+interface Protocol { id: string; chain_id: string; name: string; slug: string; }
+
+const CHAIN_DOT: Record<string, string> = {
+  ethereum: "bg-blue-400",
+  arbitrum: "bg-sky-400",
+  base: "bg-indigo-400",
+  optimism: "bg-red-400",
+};
 
 export default function DashboardPage() {
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
   const { data: recentActivity, isLoading: isRecentLoading } = useGetRecentActivity({ limit: 5 });
+  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch("/api/chains").then(r => r.json()) });
+  const { data: protocols } = useQuery<Protocol[]>({ queryKey: ["protocols"], queryFn: () => fetch("/api/protocols").then(r => r.json()) });
 
   const getTierColor = (tier: string) => {
     switch(tier) {
@@ -189,6 +203,44 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Chain Breakdown */}
+      {chains && chains.length > 0 && (
+        <Card className="bg-card/50 backdrop-blur border-border/50 shadow-sm">
+          <CardHeader className="pb-3 border-b border-border/50 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="font-serif">Network Coverage</CardTitle>
+              <CardDescription>Supported chains and protocol adapters</CardDescription>
+            </div>
+            <Link href="/chains" className="text-sm font-medium text-primary hover:underline">View Registry →</Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/50">
+              {chains.map(chain => {
+                const chainProtocols = protocols?.filter(p => p.chain_id === chain.id) ?? [];
+                return (
+                  <div key={chain.id} className="px-5 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <span className={`h-2 w-2 rounded-full flex-shrink-0 ${CHAIN_DOT[chain.slug] ?? "bg-muted-foreground"}`} />
+                      <span className="text-sm font-medium">{chain.name}</span>
+                      {chain.is_l2 && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">L2</Badge>}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground font-mono">{chainProtocols.length} adapter{chainProtocols.length !== 1 ? "s" : ""}</span>
+                      <div className="flex gap-1">
+                        {chainProtocols.slice(0, 3).map(p => (
+                          <Badge key={p.id} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">{p.slug}</Badge>
+                        ))}
+                        {chainProtocols.length > 3 && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">+{chainProtocols.length - 3}</Badge>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-card/50 backdrop-blur border-border/50 shadow-sm">
         <CardHeader className="pb-4 border-b border-border/50 flex flex-row items-center justify-between">

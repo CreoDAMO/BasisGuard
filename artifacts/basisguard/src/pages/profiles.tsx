@@ -92,7 +92,8 @@ export default function ProfilesPage() {
 function DeltaModal({ profileId, onClose }: { profileId: string | null, onClose: () => void }) {
   const { data: delta, isLoading } = useGetProfileDelta(profileId || "", {
     query: {
-      enabled: !!profileId
+      enabled: !!profileId,
+      queryKey: ["profile-delta", profileId],
     }
   });
 
