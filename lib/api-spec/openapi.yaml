@@ -3,20 +3,30 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BasisGuard Evidence Log & Adaptation Engine API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Dashboard summary and analytics
+  - name: positions
+    description: Position record operations
+  - name: citations
+    description: Authority citation operations
+  - name: profiles
+    description: Treatment profile operations
+  - name: export
+    description: Evidence export operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,579 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Dashboard ───────────────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent position record activity
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PositionRecord"
+
+  # ── Positions ────────────────────────────────────────────────────────────────
+  /positions:
+    get:
+      operationId: listPositions
+      tags: [positions]
+      summary: List position records
+      parameters:
+        - name: tier
+          in: query
+          schema:
+            type: string
+            enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+        - name: requires_review
+          in: query
+          schema:
+            type: boolean
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: classification
+          in: query
+          schema:
+            type: string
+        - name: profile_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of positions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionList"
+    post:
+      operationId: createPosition
+      tags: [positions]
+      summary: Create a new position record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PositionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionRecord"
+
+  /positions/review-queue:
+    get:
+      operationId: getReviewQueue
+      tags: [positions]
+      summary: Get all positions requiring human review
+      responses:
+        "200":
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PositionRecord"
+
+  /positions/batch-signoff:
+    post:
+      operationId: batchSignoffPositions
+      tags: [positions]
+      summary: Batch sign-off on multiple positions in a single CPA attestation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchSignoffInput"
+      responses:
+        "200":
+          description: Batch signoff result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchSignoffResult"
+
+  /positions/tier-suggestion:
+    get:
+      operationId: getTierSuggestion
+      tags: [positions]
+      summary: Auto-suggest a confidence tier based on linked citations and event type
+      parameters:
+        - name: event_type
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: citation_ids
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+            default: []
+      responses:
+        "200":
+          description: Tier suggestion with reasoning
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TierSuggestion"
+
+  /positions/{id}:
+    get:
+      operationId: getPosition
+      tags: [positions]
+      summary: Get a position record by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Position record with citations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePosition
+      tags: [positions]
+      summary: Update a position record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PositionUpdate"
+      responses:
+        "200":
+          description: Updated position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionRecord"
+
+  /positions/{id}/signoff:
+    post:
+      operationId: signOffPosition
+      tags: [positions]
+      summary: CPA/reviewer sign-off on a position
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignoffInput"
+      responses:
+        "200":
+          description: Signed off position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionRecord"
+
+  /positions/{id}/supersede:
+    post:
+      operationId: supersedePosition
+      tags: [positions]
+      summary: Create a new position that supersedes this one
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PositionInput"
+      responses:
+        "201":
+          description: New superseding position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionRecord"
+
+  /positions/{id}/history:
+    get:
+      operationId: getPositionHistory
+      tags: [positions]
+      summary: Get the full supersession chain for a position (oldest first)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full history chain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionHistory"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Citations ────────────────────────────────────────────────────────────────
+  /citations:
+    get:
+      operationId: listCitations
+      tags: [citations]
+      summary: List authority citations
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [Notice, Rev_Proc, Rev_Rul, Treasury_Decision, Case, Statute]
+        - name: authority_strength
+          in: query
+          schema:
+            type: string
+            enum: [binding_on_courts, binding_on_irs_only, non_binding_persuasive]
+        - name: q
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of citations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthorityCitation"
+    post:
+      operationId: createCitation
+      tags: [citations]
+      summary: Add an authority citation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CitationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorityCitation"
+
+  /citations/{id}:
+    get:
+      operationId: getCitation
+      tags: [citations]
+      summary: Get a citation by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Citation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorityCitation"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateCitation
+      tags: [citations]
+      summary: Update a citation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CitationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthorityCitation"
+    delete:
+      operationId: deleteCitation
+      tags: [citations]
+      summary: Delete a citation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Profiles ─────────────────────────────────────────────────────────────────
+  /profiles:
+    get:
+      operationId: listProfiles
+      tags: [profiles]
+      summary: List treatment profiles
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, deprecated, opt_in_only]
+      responses:
+        "200":
+          description: List of profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TreatmentProfile"
+    post:
+      operationId: createProfile
+      tags: [profiles]
+      summary: Create a treatment profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreatmentProfile"
+
+  /profiles/{id}:
+    get:
+      operationId: getProfile
+      tags: [profiles]
+      summary: Get a treatment profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreatmentProfile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProfile
+      tags: [profiles]
+      summary: Update a profile (e.g. deprecate it)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreatmentProfile"
+
+  /profiles/{id}/delta:
+    get:
+      operationId: getProfileDelta
+      tags: [profiles]
+      summary: Get delta report — positions that would change under this profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delta report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDelta"
+
+  # ── Export ───────────────────────────────────────────────────────────────────
+  /export/audit-package:
+    get:
+      operationId: getAuditPackage
+      tags: [export]
+      summary: Generate audit response package for a tax year
+      parameters:
+        - name: tax_year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: wallet_id
+          in: query
+          schema:
+            type: string
+        - name: redact_pii
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: When true, wallet_id and tx_id are masked in the output
+      responses:
+        "200":
+          description: Audit package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPackage"
+
+  /export/pattern-report:
+    get:
+      operationId: getPatternReport
+      tags: [export]
+      summary: Get anonymized aggregate pattern report for open-gap categories
+      responses:
+        "200":
+          description: Pattern report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatternReport"
+
+  /export/comment-letter:
+    get:
+      operationId: getCommentLetter
+      tags: [export]
+      summary: Generate anonymized aggregate data suitable for IRS comment letters on open-gap guidance
+      responses:
+        "200":
+          description: Comment letter data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentLetter"
+
+  /export/cpa-handoff:
+    get:
+      operationId: getCpaHandoff
+      tags: [export]
+      summary: Generate CPA hand-off package with summary and open action items
+      parameters:
+        - name: tax_year
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CPA hand-off package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CpaHandoff"
+
+# ── Schemas ──────────────────────────────────────────────────────────────────
 components:
   schemas:
     HealthStatus:
@@ -34,3 +617,652 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # ── Authority Citation ─────────────────────────────────────────────────────
+    AuthorityCitation:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [Notice, Rev_Proc, Rev_Rul, Treasury_Decision, Case, Statute]
+        reference:
+          type: string
+        summary:
+          type: string
+        url:
+          type: ["string", "null"]
+        authority_strength:
+          type: string
+          enum: [binding_on_courts, binding_on_irs_only, non_binding_persuasive]
+        created_at:
+          type: string
+      required:
+        - id
+        - type
+        - reference
+        - summary
+        - authority_strength
+        - created_at
+
+    CitationInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Notice, Rev_Proc, Rev_Rul, Treasury_Decision, Case, Statute]
+        reference:
+          type: string
+        summary:
+          type: string
+        url:
+          type: string
+        authority_strength:
+          type: string
+          enum: [binding_on_courts, binding_on_irs_only, non_binding_persuasive]
+      required:
+        - type
+        - reference
+        - summary
+        - authority_strength
+
+    CitationUpdate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Notice, Rev_Proc, Rev_Rul, Treasury_Decision, Case, Statute]
+        reference:
+          type: string
+        summary:
+          type: string
+        url:
+          type: string
+        authority_strength:
+          type: string
+          enum: [binding_on_courts, binding_on_irs_only, non_binding_persuasive]
+
+    # ── Treatment Profile ──────────────────────────────────────────────────────
+    ProfileRule:
+      type: object
+      properties:
+        event_type:
+          type: string
+        classification:
+          type: string
+        tier:
+          type: string
+          enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+        citation_ids:
+          type: array
+          items:
+            type: string
+      required:
+        - event_type
+        - classification
+        - tier
+        - citation_ids
+
+    TreatmentProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, deprecated, opt_in_only]
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileRule"
+        changelog:
+          type: ["string", "null"]
+        created_at:
+          type: string
+      required:
+        - id
+        - name
+        - status
+        - rules
+        - created_at
+
+    ProfileInput:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, deprecated, opt_in_only]
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileRule"
+        changelog:
+          type: string
+      required:
+        - name
+        - status
+        - rules
+
+    ProfileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, deprecated, opt_in_only]
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileRule"
+        changelog:
+          type: string
+
+    ProfileDelta:
+      type: object
+      properties:
+        profile_id:
+          type: string
+        profile_name:
+          type: string
+        changed_positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeltaEntry"
+        total_changed:
+          type: integer
+      required:
+        - profile_id
+        - profile_name
+        - changed_positions
+        - total_changed
+
+    DeltaEntry:
+      type: object
+      properties:
+        position_id:
+          type: string
+        tx_id:
+          type: string
+        event_type:
+          type: string
+        before_classification:
+          type: string
+        after_classification:
+          type: string
+        before_tier:
+          type: string
+        after_tier:
+          type: string
+      required:
+        - position_id
+        - tx_id
+        - event_type
+        - before_classification
+        - after_classification
+        - before_tier
+        - after_tier
+
+    # ── Position Record ────────────────────────────────────────────────────────
+    PositionRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        tx_id:
+          type: ["string", "null"]
+        wallet_id:
+          type: ["string", "null"]
+        event_type:
+          type: string
+        classification:
+          type: string
+        tier:
+          type: string
+          enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+        rationale:
+          type: string
+        profile_id:
+          type: ["string", "null"]
+        profile_version:
+          type: ["string", "null"]
+        requires_review:
+          type: boolean
+        reviewer_id:
+          type: ["string", "null"]
+        reviewer_name:
+          type: ["string", "null"]
+        reviewer_credential:
+          type: ["string", "null"]
+        reviewer_signoff_at:
+          type: ["string", "null"]
+        superseded_by:
+          type: ["string", "null"]
+        created_at:
+          type: string
+        is_stale:
+          type: boolean
+          description: True when a Reasonable Basis position is older than 180 days and has not been superseded
+      required:
+        - id
+        - event_type
+        - classification
+        - tier
+        - rationale
+        - requires_review
+        - created_at
+        - is_stale
+
+    PositionDetail:
+      allOf:
+        - $ref: "#/components/schemas/PositionRecord"
+        - type: object
+          properties:
+            citations:
+              type: array
+              items:
+                $ref: "#/components/schemas/AuthorityCitation"
+            profile:
+              $ref: "#/components/schemas/TreatmentProfile"
+          required:
+            - citations
+
+    PositionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PositionRecord"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - items
+        - total
+        - limit
+        - offset
+
+    PositionInput:
+      type: object
+      properties:
+        tx_id:
+          type: string
+        wallet_id:
+          type: string
+        event_type:
+          type: string
+        classification:
+          type: string
+        tier:
+          type: string
+          enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+        rationale:
+          type: string
+        profile_id:
+          type: string
+        profile_version:
+          type: string
+        citation_ids:
+          type: array
+          items:
+            type: string
+        requires_review:
+          type: boolean
+      required:
+        - event_type
+        - classification
+        - tier
+        - rationale
+
+    PositionUpdate:
+      type: object
+      properties:
+        rationale:
+          type: string
+        requires_review:
+          type: boolean
+        citation_ids:
+          type: array
+          items:
+            type: string
+
+    SignoffInput:
+      type: object
+      properties:
+        reviewer_id:
+          type: string
+        reviewer_name:
+          type: string
+        reviewer_credential:
+          type: string
+      required:
+        - reviewer_id
+        - reviewer_name
+        - reviewer_credential
+
+    # ── Dashboard ──────────────────────────────────────────────────────────────
+    TierBreakdown:
+      type: object
+      properties:
+        tier:
+          type: string
+        count:
+          type: integer
+        label:
+          type: string
+      required:
+        - tier
+        - count
+        - label
+
+    DashboardSummary:
+      type: object
+      properties:
+        total_positions:
+          type: integer
+        pending_review:
+          type: integer
+        signed_off:
+          type: integer
+        auto_applied:
+          type: integer
+        tier_breakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/TierBreakdown"
+        active_profiles:
+          type: integer
+        total_citations:
+          type: integer
+        open_gap_events:
+          type: integer
+      required:
+        - total_positions
+        - pending_review
+        - signed_off
+        - auto_applied
+        - tier_breakdown
+        - active_profiles
+        - total_citations
+        - open_gap_events
+
+    # ── Batch Signoff ──────────────────────────────────────────────────────────
+    BatchSignoffInput:
+      type: object
+      properties:
+        position_ids:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        reviewer_id:
+          type: string
+        reviewer_name:
+          type: string
+        reviewer_credential:
+          type: string
+        note:
+          type: ["string", "null"]
+          description: Optional attestation note applied to all positions in the batch
+      required:
+        - position_ids
+        - reviewer_id
+        - reviewer_name
+        - reviewer_credential
+
+    BatchSignoffResult:
+      type: object
+      properties:
+        signed_count:
+          type: integer
+        skipped_count:
+          type: integer
+          description: Positions skipped because they were already signed off
+        signed_ids:
+          type: array
+          items:
+            type: string
+        skipped_ids:
+          type: array
+          items:
+            type: string
+      required:
+        - signed_count
+        - skipped_count
+        - signed_ids
+        - skipped_ids
+
+    # ── Tier Suggestion ────────────────────────────────────────────────────────
+    TierSuggestion:
+      type: object
+      properties:
+        suggested_tier:
+          type: string
+          enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+        ceiling_tier:
+          type: string
+          enum: [will, should, more_likely_than_not, substantial_authority, reasonable_basis]
+          description: Maximum defensible tier given the provided citations
+        reasoning:
+          type: string
+        citation_count:
+          type: integer
+        strongest_authority:
+          type: ["string", "null"]
+        profile_rule_match:
+          type: ["string", "null"]
+          description: Tier from matching profile rule, if any
+        flag_downgrade:
+          type: boolean
+          description: True when suggested tier is lower than ceiling_tier — user should be cautioned
+      required:
+        - suggested_tier
+        - ceiling_tier
+        - reasoning
+        - citation_count
+        - flag_downgrade
+
+    # ── Position History ───────────────────────────────────────────────────────
+    PositionHistoryEntry:
+      allOf:
+        - $ref: "#/components/schemas/PositionRecord"
+        - type: object
+          properties:
+            is_current:
+              type: boolean
+            generation:
+              type: integer
+              description: 1 = original, 2 = first supersession, etc.
+          required:
+            - is_current
+            - generation
+
+    PositionHistory:
+      type: object
+      properties:
+        chain_length:
+          type: integer
+        current_id:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PositionHistoryEntry"
+      required:
+        - chain_length
+        - current_id
+        - entries
+
+    # ── Export ─────────────────────────────────────────────────────────────────
+    AuditPackage:
+      type: object
+      properties:
+        tax_year:
+          type: integer
+        wallet_id:
+          type: ["string", "null"]
+        generated_at:
+          type: string
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PositionDetail"
+        total_positions:
+          type: integer
+        requires_review_count:
+          type: integer
+      required:
+        - tax_year
+        - generated_at
+        - positions
+        - total_positions
+        - requires_review_count
+
+    CommentLetterEntry:
+      type: object
+      properties:
+        event_type:
+          type: string
+        position_count:
+          type: integer
+        tier_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        guidance_gap:
+          type: boolean
+        pending_irs_notices:
+          type: array
+          items:
+            type: string
+        practitioner_summary:
+          type: string
+          description: Plain-English summary of the open guidance issue
+      required:
+        - event_type
+        - position_count
+        - tier_distribution
+        - guidance_gap
+        - pending_irs_notices
+        - practitioner_summary
+
+    CommentLetter:
+      type: object
+      properties:
+        generated_at:
+          type: string
+        total_open_gap_positions:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommentLetterEntry"
+        disclaimer:
+          type: string
+      required:
+        - generated_at
+        - total_open_gap_positions
+        - entries
+        - disclaimer
+
+    CpaHandoffSummary:
+      type: object
+      properties:
+        tax_year:
+          type: integer
+        total_positions:
+          type: integer
+        signed_off:
+          type: integer
+        pending_signoff:
+          type: integer
+        stale_reasonable_basis:
+          type: integer
+        tier_breakdown:
+          type: object
+          additionalProperties:
+            type: integer
+        open_action_items:
+          type: array
+          items:
+            type: string
+      required:
+        - tax_year
+        - total_positions
+        - signed_off
+        - pending_signoff
+        - stale_reasonable_basis
+        - tier_breakdown
+        - open_action_items
+
+    CpaHandoff:
+      type: object
+      properties:
+        generated_at:
+          type: string
+        summary:
+          $ref: "#/components/schemas/CpaHandoffSummary"
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PositionDetail"
+        preparer_checklist:
+          type: array
+          items:
+            type: string
+      required:
+        - generated_at
+        - summary
+        - positions
+        - preparer_checklist
+
+    PatternReportEntry:
+      type: object
+      properties:
+        event_type:
+          type: string
+        count:
+          type: integer
+        tier_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+        open_gap:
+          type: boolean
+      required:
+        - event_type
+        - count
+        - tier_distribution
+        - open_gap
+
+    PatternReport:
+      type: object
+      properties:
+        generated_at:
+          type: string
+        total_positions:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PatternReportEntry"
+      required:
+        - generated_at
+        - total_positions
+        - entries

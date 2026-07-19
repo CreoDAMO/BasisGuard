@@ -1,0 +1,30 @@
+import { pgTable, text, uuid, timestamp, boolean } from "drizzle-orm/pg-core";
+import { treatmentProfilesTable } from "./treatment_profiles";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const positionRecordsTable = pgTable("position_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  txId: text("tx_id"),
+  walletId: text("wallet_id"),
+  eventType: text("event_type").notNull(),
+  classification: text("classification").notNull(),
+  tier: text("tier").notNull(), // will | should | more_likely_than_not | substantial_authority | reasonable_basis
+  rationale: text("rationale").notNull(),
+  profileId: uuid("profile_id").references(() => treatmentProfilesTable.id),
+  profileVersion: text("profile_version"),
+  requiresReview: boolean("requires_review").notNull().default(false),
+  reviewerId: text("reviewer_id"),
+  reviewerName: text("reviewer_name"),
+  reviewerCredential: text("reviewer_credential"),
+  reviewerSignoffAt: timestamp("reviewer_signoff_at", { withTimezone: true }),
+  supersededBy: uuid("superseded_by"), // self-reference, handled at app layer
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertPositionRecordSchema = createInsertSchema(
+  positionRecordsTable
+).omit({ id: true, createdAt: true });
+
+export type InsertPositionRecord = z.infer<typeof insertPositionRecordSchema>;
+export type PositionRecord = typeof positionRecordsTable.$inferSelect;

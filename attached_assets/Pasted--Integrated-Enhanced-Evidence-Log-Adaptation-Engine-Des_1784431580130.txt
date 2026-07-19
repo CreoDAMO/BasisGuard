@@ -1,0 +1,72 @@
+**✅ Integrated & Enhanced: Evidence Log & Adaptation Engine Design**
+
+This is an excellent, professional-grade refinement. It replaces vague labels with **Circular 230 / IRC §6694-aligned confidence tiers**, enforces citation traceability, and builds a true compliance intelligence layer. I've fully incorporated it into the BasisGuard spec and updated the technical implementation plan accordingly.
+
+### Updated Overall Spec Highlights (with this component)
+- **Adaptation Engine** now centers on **Position Records** as the atomic unit of every decision.
+- **Default Behavior**: Conservative, citation-backed positions only. Open-gap events (L2 bridges, DeFi per Notice 2024-57, etc.) default to **Reasonable Basis** with mandatory review.
+- **No Defensible Basis** positions are explicitly gated behind opt-in profiles + licensed preparer sign-off.
+- **Evidence Strength**: Authority citations table enables automated tier suggestion and audit-proof exports.
+- **Beyond Compliance Value**: Aggregated (anonymized) pattern reports become powerful tools for future regulatory comments.
+
+This makes BasisGuard not just compliant, but **defensibly superior**.
+
+### Full Technical Implementation Plan (Updated with Evidence Engine)
+
+#### Phase 0: Foundations (Already Covered)
+- Repo, Docker, auth, basic logging.
+
+#### Phase 1: MVP – Data Foundation + Core Evidence (6–8 weeks)
+- Implement full data model including new tables:
+  - `treatment_profiles`
+  - `authority_citations` (seed with key IRS items: Rev. Proc. 2024-28, Notice 2024-57, etc.)
+  - `position_records`
+  - `position_citations` (junction)
+- Ingestion + basic reconciliation.
+- Basis engine with lot tracking.
+- **Position Record creation** on every classification (even simple ones).
+- Basic 8949 reporting + simple Position export.
+
+**Milestone**: Import → auto-classify with Position Record → export report + evidence log.
+
+#### Phase 2: Adaptation & Review (6–8 weeks)
+- Treatment Profile CRUD + versioned rules engine.
+- Recompute service that updates/supersedes Position Records on profile switch.
+- Delta report generator.
+- Review UI: Dashboard queue, sign-off flow (with credential logging for preparers).
+- L2/DeFi adapters that populate rich Position Records (citations auto-linked where possible).
+- Gate logic implementation (auto vs. requires_review).
+
+**Milestone**: Full Adaptation flow — switch profile → see deltas → review/sign → regenerate compliant output.
+
+#### Phase 3: Intelligence, Education & Planning (8 weeks)
+- Guidance Tracker + auto-tier suggestions based on authority_strength.
+- Scenario Simulator (fork Position Records under hypothetical rules).
+- Property Academy + Best Practices (static content + dynamic links to citations).
+- Loss harvesting, estate simulators, charitable tools — all generating Position Records.
+- Aggregated pattern report exporter (anonymized).
+
+**Milestone**: "Beyond Compliance" features live — users see readiness scores, education, and planning aids.
+
+#### Phase 4: Polish, Enterprise & Scale
+- Advanced exports (Audit Dossier, comment-letter-ready aggregates).
+- Multi-user/CPA workflows.
+- Performance (caching for large portfolios).
+- International stubs.
+
+### Technical Details for Evidence Engine
+- **Seeding Authority Citations**: Start with 20–30 high-impact IRS items; make admin-editable.
+- **Tier Calculation**: Rule-based (authority_strength + event type) with override capability.
+- **Immutability**: Position Records are append-only; changes create superseded records.
+- **Performance**: Index heavily on tx_id/wallet_id; use materialized views for dashboards.
+- **Security**: Reviewer sign-off requires elevated permissions; audit all access to Position Records.
+
+### Immediate Next Steps (Actionable)
+1. **Database Schema** — I can generate full SQL + migrations now.
+2. **Authority Citations Seed** — List of initial entries.
+3. **Position Record Service Prototype** — Core logic for creation/validation.
+4. **UI Mock for Review Gate** — Describe or sketch.
+
+Which one should we tackle **first**? Or do you want me to output the complete SQL schema + seed data right now?
+
+We're building something genuinely strong — transparent, defensible, and ahead of the curve. Let's keep going.

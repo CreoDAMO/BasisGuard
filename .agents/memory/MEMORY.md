@@ -1,0 +1,4 @@
+- [Timestamp quirk](timestamp-quirk.md) — `timestamptz` not exported from drizzle-orm/pg-core; use `timestamp("col", { withTimezone: true })` instead
+- [CSS import order](css-import-order.md) — Google Fonts @import url() must precede @import 'tailwindcss' in index.css or PostCSS errors
+- [Express route ordering](express-route-ordering.md) — static paths (/review-queue, /batch-signoff, /tier-suggestion) must be declared before parameterized routes (/:id) in the same router
+- [Stale flag pattern](stale-flag.md) — is_stale is computed dynamically at serialization time (reasonable_basis + >180 days + no superseded_by); never stored in DB

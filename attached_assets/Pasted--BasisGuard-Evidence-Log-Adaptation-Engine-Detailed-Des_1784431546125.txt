@@ -1,0 +1,157 @@
+# BasisGuard: Evidence Log & Adaptation Engine — Detailed Design
+
+Extends the original BasisGuard spec. This component replaces vague labels ("aggressive"/"conservative") with the actual professional confidence-tier standard, and makes every classification decision traceable to a cited authority.
+
+## 1. Core Principle
+
+Every classification the system makes is stored as an immutable, versioned **Position Record** — not just a computed number, but the reasoning, the cited authority, and a real confidence tier behind it. Nothing gets flagged without the rationale attached; the tier *is* the reason.
+
+## 2. Confidence Tier System
+
+Replaces informal labels with the actual standard used under Circular 230 / IRC §6694 preparer penalty rules:
+
+| Tier | Rough likelihood of success | Disclosure required if relied on? |
+|---|---|---|
+| Will prevail | Near-certain | No |
+| Should prevail | ~70%+ | No |
+| More likely than not | >50% | No |
+| Substantial authority | ~40% | No (but weaker footing) |
+| Reasonable basis | ~20%, lowest defensible | Yes — Form 8275 |
+| No defensible basis | N/A | Not permitted as a system default, ever |
+
+Every Position Record must carry one of the top five tiers. "No defensible basis" positions (e.g., unauthoritative common-law-continuity theories) are never system defaults — see Section 5.
+
+## 3. Position Record — data structure
+
+```json
+{
+  "position_id": "uuid",
+  "tx_id": "ref to Transaction/Event",
+  "wallet_id": "ref to Wallet",
+  "event_type": "e.g. bridge_transfer | lp_deposit | staking_reward | nft_sale",
+  "classification": "e.g. non_taxable_transfer | taxable_disposition | ordinary_income",
+  "tier": "will | should | more_likely_than_not | substantial_authority | reasonable_basis",
+  "authority_citations": ["ref(s) to Authority Citation records"],
+  "rationale": "plain-language explanation, required, non-empty",
+  "profile_id": "ref to Treatment Profile used",
+  "profile_version": "semver",
+  "requires_review": true,
+  "reviewer_id": "null until signed off",
+  "reviewer_signoff_at": "timestamp | null",
+  "superseded_by": "position_id | null",
+  "created_at": "timestamp"
+}
+```
+
+## 4. Authority Citations (separate table, reusable across positions)
+
+```json
+{
+  "citation_id": "uuid",
+  "type": "Notice | Rev_Proc | Rev_Rul | Treasury_Decision | Case | Statute",
+  "reference": "e.g. Rev. Proc. 2024-28 | Notice 2024-57 | Cottage Savings 499 U.S. 554",
+  "summary": "one line, plain language",
+  "url": "irs.gov or court source",
+  "authority_strength": "binding_on_courts | binding_on_irs_only | non_binding_persuasive"
+}
+```
+
+`authority_strength` matters: a Treasury Decision (formal reg) outranks a Notice, which outranks an unauthoritative theory with no citation at all. This field is what lets the tier in Section 2 be computed rather than asserted.
+
+## 5. Review Gate Logic (the actual flagging rule)
+
+```
+IF event_type has a direct citation with authority_strength = binding_on_irs_only or higher
+    → tier = substantial_authority or better
+    → auto-apply, log citation, no human review required
+
+IF event_type is a government-acknowledged open gap
+   (wallet definition, deferred DeFi types under Notice 2024-57,
+    NFT look-through under Notice 2023-27, 1099-DA basis gap)
+    → tier = reasonable_basis (default)
+    → requires_review = true
+    → surfaced in dashboard with plain-language rationale + citation to the notice
+      that acknowledges the gap
+    → user/CPA must explicitly acknowledge before the position is used on a filing
+
+IF position has no citation at all (e.g. common-law continuity theory,
+   any "personal interpretation" argument)
+    → NOT selectable as a default or automatic profile
+    → only available behind a separately named, opt-in profile
+    → requires a named, licensed preparer's signoff per transaction, logged
+      with their credential ID
+    → cannot be batch-applied across a portfolio
+```
+
+This is the concrete implementation of "conservative default, nothing hidden, nothing auto-applied without a real citation."
+
+## 6. Treatment Profiles (versioned rule sets)
+
+```json
+{
+  "profile_id": "uuid",
+  "name": "e.g. Conservative Default 2026.1",
+  "status": "active | deprecated | opt_in_only",
+  "rules": [
+    { "event_type": "canonical_bridge_transfer",
+      "classification": "non_taxable_transfer",
+      "tier": "substantial_authority",
+      "citation_ids": ["..."] }
+  ],
+  "created_at": "timestamp",
+  "changelog": "what changed from prior version and why (e.g. new Notice issued)"
+}
+```
+
+Switching profiles (e.g., when Treasury issues new guidance) produces a **delta report**: every Position Record whose classification would change, before/after, so nothing is silently recomputed.
+
+## 7. Evidence Package Export
+
+Two output modes from the same underlying data:
+
+- **Audit response package** (per user): every position touching a specific tax year, with citation, tier, rationale, and reviewer signoff where applicable — formatted for direct submission to the IRS Office of Appeals or a Tax Court petition.
+- **Aggregated pattern report** (anonymized, opt-in, cross-user): frequency and resolution of ambiguous cases in the government-acknowledged-gap categories — this is the raw material for a future comment letter when Treasury opens rulemaking on non-custodial broker treatment or wallet definitions.
+
+## 8. Minimal schema additions to the original spec
+
+```sql
+CREATE TABLE treatment_profiles (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE authority_citations (
+  id UUID PRIMARY KEY,
+  type TEXT NOT NULL,
+  reference TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  url TEXT,
+  authority_strength TEXT NOT NULL
+);
+
+CREATE TABLE position_records (
+  id UUID PRIMARY KEY,
+  tx_id UUID REFERENCES transactions(id),
+  profile_id UUID REFERENCES treatment_profiles(id),
+  tier TEXT NOT NULL,
+  rationale TEXT NOT NULL,
+  requires_review BOOLEAN NOT NULL DEFAULT false,
+  reviewer_id UUID,
+  reviewer_signoff_at TIMESTAMPTZ,
+  superseded_by UUID REFERENCES position_records(id),
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE position_citations (
+  position_id UUID REFERENCES position_records(id),
+  citation_id UUID REFERENCES authority_citations(id),
+  PRIMARY KEY (position_id, citation_id)
+);
+```
+
+## Next candidates
+
+- DeFi classification module (protocol adapters that populate Position Records automatically)
+- Database schema for the rest of the data model (wallets, lots, reconciliation records)
