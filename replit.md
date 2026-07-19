@@ -138,11 +138,22 @@ pnpm run typecheck
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `CLERK_SECRET_KEY` | Clerk backend key (server-side auth verification) |
-| `CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Same key, exposed to Vite frontend |
-| `SESSION_SECRET` | Express session signing |
+| `DATABASE_URL` | PostgreSQL connection string — **runtime-managed by Replit, do not set manually** |
+| `CLERK_SECRET_KEY` | Clerk backend key — **auto-provisioned via Replit Auth pane** |
+| `CLERK_PUBLISHABLE_KEY` | Clerk publishable key — **auto-provisioned via Replit Auth pane** |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Same key, exposed to Vite frontend — **auto-provisioned** |
+| `SESSION_SECRET` | Express session signing — set as a Replit Secret |
+
+## Replit First-Time Setup
+
+When importing this project fresh on Replit:
+
+1. **Clerk auth** is provisioned automatically by the Replit Auth pane — no manual key entry needed.
+2. **Database schema** is pushed automatically by the post-merge hook (`scripts/post-merge.sh`), which runs `pnpm --filter @workspace/db run push`.
+3. **Seed authority citations** — the post-merge hook also runs `psql $DATABASE_URL -f scripts/seed-citations.sql`. To seed manually: `psql $DATABASE_URL -f scripts/seed-citations.sql`.
+4. **`SESSION_SECRET`** must be added as a Replit Secret (any long random string).
+
+> **Note on the `pnpm --filter @workspace/db run seed` script:** this script uses `--experimental-strip-types`, which requires Node 24. The Replit environment runs Node 20, so use the SQL file above instead.
 
 ## Known Gotchas
 
