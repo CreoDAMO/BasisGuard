@@ -21,7 +21,7 @@ const CITATIONS = [
     type: "Notice" as const,
     reference: "Notice 2024-57",
     summary:
-      "Identifies eight open-gap DeFi transaction categories where IRS guidance is pending: LP deposits/withdrawals, yield farming, liquidity mining, staking, and wrapped token wrapping/unwrapping. Taxpayers may take reasonable positions pending further guidance.",
+      "Identifies six open-gap DeFi transaction categories where IRS guidance is pending and 1099-DA reporting is deferred: (1) LP deposits, (2) LP withdrawals, (3) yield farming, (4) liquidity mining, (5) staking, (6) wrapped/unwrapped token transactions. Taxpayers may take reasonable positions pending further guidance.",
     url: "https://www.irs.gov/pub/irs-drop/n-24-57.pdf",
     authorityStrength: "binding_on_irs_only" as const,
   },

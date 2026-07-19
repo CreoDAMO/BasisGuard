@@ -48,6 +48,7 @@ export const GetRecentActivityQueryParams = zod.object({
 export const GetRecentActivityResponseItem = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -130,6 +131,7 @@ export const ListPositionsResponse = zod.object({
   "items": zod.array(zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -158,6 +160,7 @@ export const ListPositionsResponse = zod.object({
  */
 export const CreatePositionBody = zod.object({
   "tx_id": zod.string().optional(),
+  "tx_date": zod.coerce.date().optional().describe('Actual date of the underlying transaction. Used for tax-year audit packages. If omitted, created_at is used as the fallback.'),
   "wallet_id": zod.string().optional(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -172,6 +175,7 @@ export const CreatePositionBody = zod.object({
 export const CreatePositionResponse = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -197,6 +201,7 @@ export const CreatePositionResponse = zod.object({
 export const GetReviewQueueResponseItem = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -270,6 +275,7 @@ export const GetPositionParams = zod.object({
 export const GetPositionResponse = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -328,6 +334,7 @@ export const UpdatePositionBody = zod.object({
 export const UpdatePositionResponse = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -363,6 +370,7 @@ export const SignOffPositionBody = zod.object({
 export const SignOffPositionResponse = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -391,6 +399,7 @@ export const SupersedePositionParams = zod.object({
 
 export const SupersedePositionBody = zod.object({
   "tx_id": zod.string().optional(),
+  "tx_date": zod.coerce.date().optional().describe('Actual date of the underlying transaction. Used for tax-year audit packages. If omitted, created_at is used as the fallback.'),
   "wallet_id": zod.string().optional(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -405,6 +414,7 @@ export const SupersedePositionBody = zod.object({
 export const SupersedePositionResponse = zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -437,6 +447,7 @@ export const GetPositionHistoryResponse = zod.object({
   "entries": zod.array(zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -707,6 +718,7 @@ export const GetAuditPackageResponse = zod.object({
   "positions": zod.array(zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),
@@ -1126,6 +1138,7 @@ export const GetCpaHandoffResponse = zod.object({
   "positions": zod.array(zod.object({
   "id": zod.string(),
   "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
   "wallet_id": zod.string().nullish(),
   "event_type": zod.string(),
   "classification": zod.string(),

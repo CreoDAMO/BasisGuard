@@ -38,6 +38,7 @@ async function enrichPosition(pos: typeof positionRecordsTable.$inferSelect, red
   return {
     id: pos.id,
     tx_id: redact ? "[REDACTED]" : (pos.txId ?? null),
+    tx_date: pos.txDate?.toISOString() ?? null,
     wallet_id: redact ? "[REDACTED]" : (pos.walletId ?? null),
     event_type: pos.eventType,
     classification: pos.classification,
@@ -85,9 +86,12 @@ router.get("/export/audit-package", async (req, res): Promise<void> => {
   const allPositions = await db.select().from(positionRecordsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
 
-  const yearPositions = allPositions.filter(
-    (p) => p.createdAt >= yearStart && p.createdAt < yearEnd
-  );
+  // Use txDate (actual transaction date) for tax-year bucketing; fall back to
+  // createdAt only for legacy records that predate the tx_date field.
+  const yearPositions = allPositions.filter((p) => {
+    const taxDate = p.txDate ?? p.createdAt;
+    return taxDate >= yearStart && taxDate < yearEnd;
+  });
 
   const enriched = await Promise.all(yearPositions.map((pos) => enrichPosition(pos, redact)));
   const requiresReviewCount = enriched.filter((p) => p.requires_review && !p.reviewer_signoff_at).length;
@@ -143,6 +147,9 @@ router.get("/export/pattern-report", async (_req, res): Promise<void> => {
 router.get("/export/comment-letter", async (_req, res): Promise<void> => {
   const positions = await db.select().from(positionRecordsTable);
 
+  // Canonical open-gap event types — must stay in sync with OPEN_GAP_EVENT_TYPES in pattern-report above.
+  // bridge_transfer is included in both lists: it is flagged as open-gap in pattern-report
+  // and must appear here so bridge positions are captured in comment-letter exports.
   const OPEN_GAP_EVENTS: Record<string, { pending_notices: string[]; summary: string }> = {
     lp_deposit: {
       pending_notices: ["Notice 2024-57"],
@@ -158,6 +165,11 @@ router.get("/export/comment-letter", async (_req, res): Promise<void> => {
       pending_notices: ["Notice 2024-57"],
       summary:
         "DeFi yield farming distributions lack specific IRS guidance. Practitioners are split between immediate ordinary income recognition (Glenshaw Glass accession-to-wealth) and deferred recognition. Notice 2024-57 identifies this as a priority guidance area.",
+    },
+    bridge_transfer: {
+      pending_notices: ["Notice 2024-57"],
+      summary:
+        "Bridge transfers and cross-chain transactions are identified as an open-gap area in Notice 2024-57. The IRS has not addressed whether a bridge transfer constitutes a realization event; the most defensible position is non-recognition with basis carryover, treating the taxpayer as retaining beneficial ownership throughout. Form 8275 disclosure is recommended pending further guidance.",
     },
     staking_reward: {
       pending_notices: ["Rev. Rul. 2023-14"],
@@ -212,9 +224,12 @@ router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
   const yearEnd = new Date(`${taxYear + 1}-01-01T00:00:00Z`);
 
   const allPositions = await db.select().from(positionRecordsTable);
-  const yearPositions = allPositions.filter(
-    (p) => p.createdAt >= yearStart && p.createdAt < yearEnd
-  );
+  // Use txDate (actual transaction date) for tax-year bucketing; fall back to
+  // createdAt only for legacy records that predate the tx_date field.
+  const yearPositions = allPositions.filter((p) => {
+    const taxDate = p.txDate ?? p.createdAt;
+    return taxDate >= yearStart && taxDate < yearEnd;
+  });
 
   const signed = yearPositions.filter((p) => p.reviewerSignoffAt !== null);
   const pending = yearPositions.filter((p) => p.requiresReview && !p.reviewerSignoffAt);
@@ -243,7 +258,7 @@ router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
     "Confirm Form 8275 disclosures are prepared for all Reasonable Basis and below positions.",
     "Review stale Reasonable Basis positions (>180 days) — new guidance may have issued.",
     "Confirm broker 1099-DA reconciliation is complete for custodial accounts (T.D. 10000).",
-    "Retain this package for a minimum of 7 years per IRC §6501 limitations period.",
+    "Retain this package for a minimum of 7 years (IRC §6501 sets 3 years generally, 6 years for >25% income omission; unlimited for fraud or non-filing — 7 years is the recommended practical buffer covering the 6-year window plus one year).",
     "If any open-gap event types are present, confirm Comment Letter prep is on file.",
   ];
 

@@ -44,6 +44,7 @@ function serializePosition(p: typeof positionRecordsTable.$inferSelect) {
   return {
     id: p.id,
     tx_id: p.txId ?? null,
+    tx_date: p.txDate?.toISOString() ?? null,
     wallet_id: p.walletId ?? null,
     event_type: p.eventType,
     classification: p.classification,
@@ -110,6 +111,7 @@ router.post("/positions", async (req, res): Promise<void> => {
 
   const [position] = await db.insert(positionRecordsTable).values({
     txId: rest.tx_id ?? null,
+    txDate: rest.tx_date ? new Date(rest.tx_date as string) : null,
     walletId: rest.wallet_id ?? null,
     eventType: rest.event_type,
     classification: rest.classification,
@@ -400,6 +402,7 @@ router.post("/positions/:id/supersede", async (req, res): Promise<void> => {
 
   const [newPosition] = await db.insert(positionRecordsTable).values({
     txId: rest.tx_id ?? existing.txId,
+    txDate: rest.tx_date ? new Date(rest.tx_date as string) : existing.txDate,
     walletId: rest.wallet_id ?? existing.walletId,
     eventType: rest.event_type,
     classification: rest.classification,

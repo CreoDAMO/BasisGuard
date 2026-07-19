@@ -11,6 +11,11 @@ export interface PositionRecord {
   id: string;
   /** @nullable */
   tx_id?: string | null;
+  /**
+     * Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.
+     * @nullable
+     */
+  tx_date?: Date | null;
   /** @nullable */
   wallet_id?: string | null;
   event_type: string;

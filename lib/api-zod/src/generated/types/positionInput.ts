@@ -9,6 +9,8 @@ import type { PositionInputTier } from './positionInputTier';
 
 export interface PositionInput {
   tx_id?: string;
+  /** Actual date of the underlying transaction. Used for tax-year audit packages. If omitted, created_at is used as the fallback. */
+  tx_date?: Date;
   wallet_id?: string;
   event_type: string;
   classification: string;

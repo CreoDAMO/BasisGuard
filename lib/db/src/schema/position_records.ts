@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 export const positionRecordsTable = pgTable("position_records", {
   id: uuid("id").primaryKey().defaultRandom(),
   txId: text("tx_id"),
+  txDate: timestamp("tx_date", { withTimezone: true }), // actual date of the underlying transaction (for tax-year bucketing)
   walletId: text("wallet_id"),
   eventType: text("event_type").notNull(),
   classification: text("classification").notNull(),

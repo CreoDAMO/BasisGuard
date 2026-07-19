@@ -1154,6 +1154,10 @@ components:
           type: string
         tx_id:
           type: ["string", "null"]
+        tx_date:
+          type: ["string", "null"]
+          format: date-time
+          description: Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.
         wallet_id:
           type: ["string", "null"]
         event_type:
@@ -1237,6 +1241,10 @@ components:
       properties:
         tx_id:
           type: string
+        tx_date:
+          type: string
+          format: date-time
+          description: Actual date of the underlying transaction. Used for tax-year audit packages. If omitted, created_at is used as the fallback.
         wallet_id:
           type: string
         event_type:

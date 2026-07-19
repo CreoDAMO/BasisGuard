@@ -204,6 +204,11 @@ export interface PositionRecord {
   id: string;
   /** @nullable */
   tx_id?: string | null;
+  /**
+     * Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.
+     * @nullable
+     */
+  tx_date?: string | null;
   /** @nullable */
   wallet_id?: string | null;
   event_type: string;
@@ -260,6 +265,8 @@ export const PositionInputTier = {
 
 export interface PositionInput {
   tx_id?: string;
+  /** Actual date of the underlying transaction. Used for tax-year audit packages. If omitted, created_at is used as the fallback. */
+  tx_date?: string;
   wallet_id?: string;
   event_type: string;
   classification: string;
