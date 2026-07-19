@@ -61,6 +61,24 @@ const CITATIONS = [
     url: "https://www.irs.gov/pub/irs-drop/n-14-21.pdf",
     authorityStrength: "binding_on_irs_only" as const,
   },
+  {
+    id: "aa000001-0000-0000-0000-000000000007",
+    type: "Treasury_Decision" as const,
+    reference: "T.D. 10000 (2024)",
+    summary:
+      "Final regulations (July 9, 2024) governing custodial broker 1099-DA reporting under IRC §6045. Covers exchanges, hosted-wallet providers, and payment processors that take possession of customer digital assets. Establishes cost-basis reporting rules effective for sales on or after January 1, 2025. This Treasury Decision remains in force and was not affected by the Congressional Review Act repeal of T.D. 10021.",
+    url: "https://www.federalregister.gov/documents/2024/07/09/2024-14701/gross-proceeds-and-basis-reporting-by-brokers-and-determination-of-amount-realized-and-basis-for",
+    authorityStrength: "binding_on_courts" as const,
+  },
+  {
+    id: "aa000001-0000-0000-0000-000000000008",
+    type: "Treasury_Decision" as const,
+    reference: "T.D. 10021 (2024) — REPEALED",
+    summary:
+      "REPEALED — No longer valid authority. T.D. 10021 (December 30, 2024) extended 1099-DA broker reporting rules to DeFi/non-custodial 'trading front-end service providers' under IRC §6045. Congress repealed it via the Congressional Review Act (H.J. Res. 25, signed April 10, 2025). It is not current law and must not be cited as live authority. Retained here for historical reference only — its repeal is part of the background context for Notice 2024-57's DeFi deferral.",
+    url: "https://www.federalregister.gov/documents/2024/12/30/2024-30780/gross-proceeds-reporting-by-brokers-that-regularly-provide-services-effectuating-digital-asset-sales",
+    authorityStrength: "non_binding_persuasive" as const,
+  },
 ];
 
 async function seed() {

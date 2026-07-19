@@ -242,7 +242,7 @@ router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
     "Verify all positions with requires_review=true have been signed off before submission.",
     "Confirm Form 8275 disclosures are prepared for all Reasonable Basis and below positions.",
     "Review stale Reasonable Basis positions (>180 days) — new guidance may have issued.",
-    "Confirm broker 1099-DA reconciliation is complete for custodial accounts (T.D. 10021).",
+    "Confirm broker 1099-DA reconciliation is complete for custodial accounts (T.D. 10000).",
     "Retain this package for a minimum of 7 years per IRC §6501 limitations period.",
     "If any open-gap event types are present, confirm Comment Letter prep is on file.",
   ];

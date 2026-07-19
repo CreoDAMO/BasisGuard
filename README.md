@@ -133,7 +133,8 @@ The following event types have no direct IRS guidance and always require prepare
 | Notice 2023-27 | Notice | NFT look-through analysis for §408(m) collectible determination |
 | Notice 2024-57 | Notice | DeFi open gap acknowledgment; defers LP/yield/staking guidance |
 | Rev. Proc. 2024-28 | Rev. Proc. | Cost basis accounting methods (FIFO/LIFO/SpecID) for crypto |
-| T.D. 10021 (2024) | Treasury Decision | Broker 1099-DA reporting final regulations |
+| T.D. 10000 (2024) | Treasury Decision | Custodial broker 1099-DA reporting final regulations (exchanges, hosted wallets) — current law |
+| T.D. 10021 (2024) ⚠️ REPEALED | Treasury Decision | DeFi/non-custodial front-end broker rules — repealed by Congress via CRA (H.J. Res. 25, Apr 10 2025); retained as historical reference only |
 | Cottage Savings v. Commissioner | Case | Realization doctrine — material difference test for taxable exchanges |
 
 ---
