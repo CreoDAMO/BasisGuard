@@ -1,3 +1,4 @@
+- [Clerk auth setup](clerk-auth-setup.md) — Replit-managed Clerk; JIT-provisions users table on first request; health (/healthz) public, all other /api/* require auth
 - [Timestamp quirk](timestamp-quirk.md) — `timestamptz` not exported from drizzle-orm/pg-core; use `timestamp("col", { withTimezone: true })` instead
 - [CSS import order](css-import-order.md) — Google Fonts @import url() must precede @import 'tailwindcss' in index.css or PostCSS errors
 - [Express route ordering](express-route-ordering.md) — static paths (/review-queue, /batch-signoff, /tier-suggestion) must be declared before parameterized routes (/:id) in the same router
