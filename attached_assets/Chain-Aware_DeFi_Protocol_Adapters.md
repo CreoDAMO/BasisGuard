@@ -397,3 +397,90 @@ INSERT INTO protocols (id, chain_id, name, slug, contract_addresses, adapter_ver
 - Or another component?
 
 Let me know! The registry + chain model + Aave skeleton gives us strong DeFi coverage.
+
+I have an idea 💡, the chains and protocols added already can stay. But instead of adding more chains and protocols manually, we should design it so that they can be added by CPA's, Chain & Protocol provider's
+
+**✅ Excellent Idea — Self-Service Chain & Protocol Onboarding**
+
+This is a smart evolution. Instead of hardcoding everything, we'll add a **self-service admin/partner portal** so trusted CPAs, chain teams, and protocol providers can safely add new chains and protocols. This makes BasisGuard extensible and community-driven while maintaining control and auditability.
+
+### Updated Design: Self-Service Onboarding System
+
+#### 1. New Entities
+```sql
+CREATE TABLE chain_submissions (
+  id UUID PRIMARY KEY,
+  submitted_by UUID REFERENCES users(id),        -- CPA or provider
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  is_l2 BOOLEAN DEFAULT false,
+  parent_chain_slug TEXT,                        -- for L2s
+  rpc_url TEXT,
+  explorer_url TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by UUID REFERENCES users(id),
+  reviewed_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE protocol_submissions (
+  id UUID PRIMARY KEY,
+  submitted_by UUID REFERENCES users(id),
+  chain_slug TEXT NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  contract_addresses JSONB,
+  adapter_version TEXT,
+  documentation_url TEXT,
+  status TEXT DEFAULT 'pending',
+  reviewed_by UUID REFERENCES users(id),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### 2. Roles & Permissions
+- **Super Admin**: Full approval rights.
+- **CPA/Partner**: Can submit chains/protocols; view their submissions.
+- **Reviewer (licensed CPA)**: Can approve/reject submissions.
+
+#### 3. Workflow
+1. **Submission Form** (Frontend):
+   - Chain: Name, slug, is_l2, parent, RPC/explorer.
+   - Protocol: Chain selection, name, slug, contract addresses (JSON), docs link.
+
+2. **Approval Flow** (Admin Dashboard):
+   - Review submission (validate RPC, contracts, security).
+   - Approve → auto-create `Chain`/`Protocol` record + register adapter if applicable.
+   - Reject with reason (notified to submitter).
+
+3. **After Approval**:
+   - Auto-register in `ProtocolRegistry`.
+   - Notify users with activity on the new chain/protocol.
+   - Versioned (so existing data isn't affected until they opt-in).
+
+#### 4. Security & Controls
+- Submissions require verified CPA license or partner verification.
+- Rate limiting and manual review for new chains.
+- Sandbox mode: Test new protocol parsing before full activation.
+- Audit log for all approvals.
+
+#### 5. Implementation Steps
+1. Add submission tables + models.
+2. Backend endpoints:
+   - `POST /submit/chain`
+   - `POST /submit/protocol`
+   - `GET /admin/submissions` (with approval actions)
+3. Frontend: Submission forms + Admin review queue.
+4. Hook into `ProtocolRegistry` for auto-registration on approval.
+
+This keeps the existing seeded data intact while opening the system to trusted contributors — exactly what a mature compliance platform needs.
+
+**Next?**
+- SQL for new tables + migration?
+- Submission API endpoint skeleton?
+- UI form wireframe description?
+- Or integrate this with the Evidence Engine (e.g., new chains auto-flag open-gap events)?
+
+Let me know how to move forward! This is a strong addition.
