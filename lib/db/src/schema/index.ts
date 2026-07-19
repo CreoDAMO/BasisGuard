@@ -5,3 +5,5 @@ export * from "./position_citations";
 export * from "./chains";
 export * from "./protocols";
 export * from "./submissions";
+export * from "./users";
+export * from "./raw_transactions";

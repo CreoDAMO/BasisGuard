@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, count, isNull, inArray } from "drizzle-orm";
 import { db, positionRecordsTable, positionCitationsTable, authorityCitationsTable, treatmentProfilesTable } from "@workspace/db";
+import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 import {
   CreatePositionBody,
   UpdatePositionBody,
@@ -165,7 +166,7 @@ router.post("/positions", async (req, res): Promise<void> => {
 });
 
 // POST /positions/batch-signoff  — must be before /:id
-router.post("/positions/batch-signoff", async (req, res): Promise<void> => {
+router.post("/positions/batch-signoff", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const body = req.body as {
     position_ids: string[];
     reviewer_id: string;
@@ -381,7 +382,7 @@ router.patch("/positions/:id", async (req, res): Promise<void> => {
 });
 
 // POST /positions/:id/signoff
-router.post("/positions/:id/signoff", async (req, res): Promise<void> => {
+router.post("/positions/:id/signoff", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const params = SignOffPositionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

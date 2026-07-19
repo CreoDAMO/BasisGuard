@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, or } from "drizzle-orm";
 import { db, chainSubmissionsTable, protocolSubmissionsTable, chainsTable, protocolsTable } from "@workspace/db";
+import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 
 const router: IRouter = Router();
 
@@ -89,7 +90,7 @@ router.post("/submit/protocol", async (req, res): Promise<void> => {
 });
 
 // GET /admin/submissions  — all pending, or filter by status/type
-router.get("/admin/submissions", async (req, res): Promise<void> => {
+router.get("/admin/submissions", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const status = (req.query.status as string) ?? "pending";
   const [chainSubs, protocolSubs] = await Promise.all([
     db.select().from(chainSubmissionsTable)
@@ -107,7 +108,7 @@ router.get("/admin/submissions", async (req, res): Promise<void> => {
 });
 
 // PATCH /admin/submissions/chain/:id/approve
-router.patch("/admin/submissions/chain/:id/approve", async (req, res): Promise<void> => {
+router.patch("/admin/submissions/chain/:id/approve", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const { id } = req.params;
   const { reviewed_by } = req.body as { reviewed_by?: string };
   const [sub] = await db.select().from(chainSubmissionsTable).where(eq(chainSubmissionsTable.id, id));
@@ -144,7 +145,7 @@ router.patch("/admin/submissions/chain/:id/approve", async (req, res): Promise<v
 });
 
 // PATCH /admin/submissions/chain/:id/reject
-router.patch("/admin/submissions/chain/:id/reject", async (req, res): Promise<void> => {
+router.patch("/admin/submissions/chain/:id/reject", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const { id } = req.params;
   const { reviewed_by, rejection_reason } = req.body as { reviewed_by?: string; rejection_reason?: string };
   const [updated] = await db.update(chainSubmissionsTable)
@@ -156,7 +157,7 @@ router.patch("/admin/submissions/chain/:id/reject", async (req, res): Promise<vo
 });
 
 // PATCH /admin/submissions/protocol/:id/approve
-router.patch("/admin/submissions/protocol/:id/approve", async (req, res): Promise<void> => {
+router.patch("/admin/submissions/protocol/:id/approve", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const { id } = req.params;
   const { reviewed_by } = req.body as { reviewed_by?: string };
   const [sub] = await db.select().from(protocolSubmissionsTable).where(eq(protocolSubmissionsTable.id, id));
@@ -185,7 +186,7 @@ router.patch("/admin/submissions/protocol/:id/approve", async (req, res): Promis
 });
 
 // PATCH /admin/submissions/protocol/:id/reject
-router.patch("/admin/submissions/protocol/:id/reject", async (req, res): Promise<void> => {
+router.patch("/admin/submissions/protocol/:id/reject", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const { id } = req.params;
   const { reviewed_by, rejection_reason } = req.body as { reviewed_by?: string; rejection_reason?: string };
   const [updated] = await db.update(protocolSubmissionsTable)

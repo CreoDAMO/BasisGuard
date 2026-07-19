@@ -1,20 +1,26 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar";
-import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox } from "lucide-react";
+import { useClerk, useUser } from "@clerk/react";
+import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarFooter } from "@/components/ui/sidebar";
+import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown } from "lucide-react";
+import { useCurrentUser, ROLE_LABELS } from "@/hooks/use-current-user";
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { signOut } = useClerk();
+  const { user } = useUser();
+  const { data: currentUser } = useCurrentUser();
 
   return (
-    <Sidebar className="border-r border-border bg-sidebar h-full hidden md:flex">
+    <Sidebar className="border-r border-border bg-sidebar h-full hidden md:flex flex-col">
       <SidebarHeader className="p-4 border-b border-border">
         <Link href="/dashboard" className="flex items-center gap-2 px-2 py-1">
           <ShieldCheck className="h-6 w-6 text-foreground" />
           <span className="font-bold font-serif text-lg tracking-wide uppercase">BasisGuard</span>
         </Link>
       </SidebarHeader>
-      <SidebarContent>
+
+      <SidebarContent className="flex-1">
         <SidebarGroup>
           <SidebarGroupLabel className="font-mono text-xs uppercase text-muted-foreground tracking-wider mb-2 px-4">
             Intelligence
@@ -115,10 +121,39 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/transactions")}>
+                  <Link href="/transactions" className="flex items-center gap-3 w-full px-4 py-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    <span>Ingest</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t border-border p-4">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-xs font-medium text-foreground truncate">
+              {user?.primaryEmailAddress?.emailAddress ?? "…"}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
+              {currentUser ? ROLE_LABELS[currentUser.role] : "—"}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => signOut({ redirectUrl: basePath || "/" })}
+            className="flex-shrink-0 p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }
