@@ -5,4 +5,5 @@
 - [Stale flag pattern](stale-flag.md) — is_stale is computed dynamically at serialization time (reasonable_basis + >180 days + no superseded_by); never stored in DB
 - [Orval naming conflicts](orval-naming-conflicts.md) — inline anonymous request bodies generate same name in api.ts (Zod) and types/ (TS); fix by extracting to named $ref schemas in OpenAPI
 - [DB seeding approach](db-seeding.md) — Node --experimental-strip-types cannot resolve extensionless ESM imports from workspace packages; use psql direct SQL for seeding instead
-- [Authority citation UUIDs](authority-citation-uuids.md) — 6 IRS citations seeded with fixed UUIDs aa000001-0000-0000-0000-00000000000{1-6}; intelligence engine depends on these being present
+- [Authority citation UUIDs](authority-citation-uuids.md) — 10 IRS citations seeded with fixed UUIDs aa000001-...{1-10}; 9=IRC §1001, 10=IRC §165 added for adapter layer
+- [Protocol adapter layer](protocol-adapter-layer.md) — core/adapters + registry + classify route; registry lazily re-inits; adapters: 0 at startup = no protocols seeded yet (expected)
