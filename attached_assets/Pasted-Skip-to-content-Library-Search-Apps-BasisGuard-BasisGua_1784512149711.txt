@@ -1,0 +1,137 @@
+Skip to content
+Library
+Search
+Apps
+BasisGuard
+BasisGuard
+Website
+/
+Set up the imported project
+The user just imported this project from a GitHub repository. It could be anything — an app to run on Replit, a library, a fork to study, code to reuse — so the first thing to do is ask what they want; everything after depends on the answer.
+
+What would you like to do with BasisGuard?
+What would you like to do?
+Get it running on Replit
+Setting up BasisGuard
+Let me check what's already in place and what's needed to get this running.
+
+Dependencies are already installed, DB is ready, Clerk isn't configured yet. Let me set up Clerk and run the DB migrations in parallel.
+
+Let me provision Clerk and run the DB schema push in parallel.
+
+Clerk provisioned and schema pushed. Now seed the DB and check the workflow logs.
+
+All workflows are running. Now I need to seed the citations using direct SQL (as noted in memory — Node 20 doesn't support --experimental-strip-types). Let me check the seed file.
+
+All 8 citations seeded. Let me verify the app loads correctly with a screenshot.
+
+The app is live. Let me read the follow-up tasks skill and wrap up.
+
+The reviewer flagged that postgresql-16 was removed from .replit (likely by the import process). I need to restore it and commit meaningful setup artifacts.
+
+The working tree already has postgresql-16 restored. I need to commit it along with setup documentation that makes the work reproducible.
+
+The .replit fix is already in the working tree. I need to also add reproducible setup artifacts — a seed SQL script and updated post-merge hook — so the setup is committed and repeatable.
+
+Now update replit.md to document the Replit-specific setup, then commit everything.
+
+Let's review these, if you see where you can surpass it, you can
+
+2 hours ago
+Good — solid patch with honest gaps. Let me read the current codebase to understand what I'm working with before applying it and deciding what to add.
+
+Key findings: viem isn't installed, and there's no classify route. Let me read the specific files I need to edit, install viem, and plan the improvements in parallel.
+
+Now I have everything I need. Here's my plan to surpass the patch:
+
+Apply everything the patch does — export computeRequiresReview, shared createPosition, base/Aave adapters, registry, refactor transactions.ts
+Implement decodeLog() for real using viem's decodeEventLog (the patch's stub returns null — nothing classifies without this)
+Add a Uniswap V3 swap adapter — the most common DeFi event, well-settled under Cottage Savings
+Add POST /api/transactions/classify — the route that actually drives ingestion → auto-classification (explicitly called out as missing)
+Wire registry.initialize() at server startup — the registry singleton is never initialized in the patch
+Seed the two new statute citations into the DB now
+Let me check the type enum in the authority_citations schema first, then write everything in parallel.
+
+Good — I have full context. Writing everything in parallel: new core files, refactored routes, server wiring, updated seeds.
+
+Now edit all the existing files in parallel — positions.ts, transactions.ts, index.ts, seed files.
+
+Now update the seed SQL file and rebuild the API server to verify everything compiles cleanly.
+
+Build succeeded cleanly. Let me restart the API server and verify it comes up with the registry initializing.
+
+Server up, registry initialized (0 adapters — expected since no protocols are seeded yet). Let me commit everything and update memory.
+
+Here's what the patch had right, what I left intact, and what I added on top:
+
+Applied from the patch as-is:
+
+Export computeRequiresReview from positions.ts — single source of truth
+core/createPosition.ts — shared insert path; transactions.ts ingest route now uses it
+core/adapters/base.ts — abstract BaseProtocolAdapter + ParsedEvent interface
+Aave V3 event classifications (Supply, Borrow, Repay, Withdraw, LiquidationCall)
+aave_withdraw / aave_liquidation in OPEN_GAP_EVENT_TYPES — review forced structurally, not by a flag
+IRC §1001 and §165 added as seeded statute citations (UUIDs ...009 and ...010)
+The comment-letter distinction is preserved: those two Aave events stay out of OPEN_GAP_EVENTS because they're data-gap events, not IRS-guidance-gap events
+Where I went further:
+
+decodeLog() is real now, not a stub. Uses viem's decodeEventLog — tries each ABI item against each log, catches mismatches, moves on. The Aave adapter actually classifies transactions when you feed it a tx hash.
+
+Fast path in both adapters. If rawData.event_name is already set (from an indexer that pre-decoded the event), the adapter skips the RPC call entirely. RPC fallback is there for raw tx hashes.
+
+Uniswap V3 adapter (uniswap_v3 slug) — decodes the Swap event, classifies as taxable_disposition / should tier, citing IRC §1001, Cottage Savings, Notice 2014-21, and Rev. Proc. 2024-28. Multi-hop swaps (multiple Swap logs in one receipt) each get their own Position Record.
+
+POST /api/transactions/classify — the missing piece. Walks processed=false rows, runs each through the registry, creates Position Records, marks rows processed. Accepts limit (default 50, max 200) and optional protocol_id filter. Returns { total_fetched, classified, skipped, errors }.
+
+Registry initialized at server startup (fire-and-forget, logs adapter count). Also lazily re-initializes on the first classify call if startup failed. The adapters: 0 in the current log is expected — there are no rows in the protocols table yet. Seeding a protocol with slug = 'aave_v3' or slug = 'uniswap_v3' is what wires it to an adapter.
+
+The one open thing the patch flagged honestly — RewardsClaimed — I left out for the same reason: it comes from Aave's separate Rewards Controller contract and needs a verified ABI before it's worth touching.
+
+Let's update the README to reflect everything that has been done
+
+25 minutes ago
+Done. The README now covers the full current state of the project:
+
+Architecture — monorepo layout including the generated packages (api-zod, api-client-react)
+Schema — all tables including the new amount_usd column and when it's populated
+API routes — every endpoint, organized by domain, including the new harvest-candidates, classify, dossier, and admin/registry/refresh routes
+Frontend pages — including Harvest Scanner and the updated Export page with the dossier variant
+Protocol Adapter Layer — how the registry works, how adapters are activated, all 10 seeded citations with their UUIDs and purposes
+Loss Harvesting Scanner — the 30-day wash-sale window, amount_usd semantics, and the §1091 disclaimer rationale
+IRS-Ready Dossier — the parallel-fetch approach and what the envelope contains
+Testing — all 38 tests with what each file covers and why the pure-function split matters
+Key Design Decisions — the two-category open-gap distinction is now explicitly documented (IRS-guidance-gap vs. fact-pattern-gap)
+What Is Not Yet Built — accurate: the adapter layer exists but needs protocol rows seeded; LP/bridge/staking adapters deferred; FMV oracle features deferred
+Can we seed the protocol rows?
+
+11 minutes ago
+No chains at all yet — need to seed those first. Let me check what the adapters expect for contract addresses and chain matching.
+
+The registry matches adapters by protocol.slug, and adapters resolve the viem chain from chains.slug. I need to seed chains first, then protocol rows for each chain the adapters support. Let me write the seed script and run it.
+
+5 chains and 10 protocol rows inserted. Now hit the refresh endpoint so the running server picks them up without a restart.
+
+The refresh endpoint needs a Clerk session. Easiest path — restart the server, which re-initializes the registry on startup.
+
+adapters: 10 — the registry picked up all 10 protocol instances on startup. Let me commit the seed script and update the README to remove the "protocols not seeded" entry from the outstanding list.
+
+Also wire the protocol seed into the post-merge script so new Replit environments get everything in one shot.
+
+Everything is live. Here's what was done:
+
+5 chains seeded — Ethereum, Arbitrum, Base, OP Mainnet, Polygon — each with their EVM chain ID and block explorer URL in metadata.
+
+10 protocol rows seeded — Aave V3 and Uniswap V3 on each chain, with verified contract addresses (pool for Aave, factory + swap_router_02 for Uniswap). UUIDs are fixed so the script is fully idempotent.
+
+Registry confirmed: the server log on startup now reads Protocol registry initialized — adapters: 10. Both adapter classes (Aave V3 and Uniswap V3) are live across all five chains.
+
+Post-merge hook updated so scripts/seed-protocols.sql runs automatically whenever task-agent work is merged in — fresh environments get chains, citations, and protocols in one shot.
+
+To classify transactions, ingest raw rows via POST /api/transactions/ingest with the correct protocol_id (one of the cc000001-… UUIDs above), then run POST /api/transactions/classify. The adapter will parse the event and create a signed Position Record with IRS citations attached.
+
+Ready for review
+Set up the imported project
+Replit setup: restore postgresql-16 module, add seed SQL, document first-time setup
+
+Message Agent...
+
