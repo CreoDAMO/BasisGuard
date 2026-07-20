@@ -99,7 +99,7 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 
 | Method | Path | Auth |
 |---|---|---|
-| GET / POST | `/api/transactions` | Any authenticated |
+| GET | `/api/transactions` | Any authenticated |
 | POST | `/api/transactions/ingest` | Any authenticated |
 | POST | `/api/transactions/classify` | Any authenticated |
 
@@ -125,7 +125,10 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 
 | Method | Path | Auth |
 |---|---|---|
-| GET / POST | `/api/chains`, `/api/protocols` | Any authenticated |
+| GET / POST | `/api/chains` | Any authenticated |
+| GET | `/api/chains/:id` | Any authenticated |
+| GET / POST | `/api/protocols` | Any authenticated |
+| GET | `/api/protocols/:id` | Any authenticated |
 | POST | `/api/submit/chain`, `/api/submit/protocol` | Any authenticated |
 
 ### Admin
@@ -157,7 +160,6 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 | Harvest Scanner | `/harvest` | Loss harvesting candidates + wash-sale risk flags (30-day window) |
 | Chain Registry | `/chains` | Supported blockchains and community submissions |
 | Onboarding | `/submissions` | Admin review of chain/protocol submissions |
-| Ingest | `/transactions` | Raw transaction ingestion |
 
 ---
 
@@ -196,6 +198,29 @@ VALUES (gen_random_uuid(), '<ethereum-chain-id>', 'Aave V3', 'aave_v3', ...);
 ```
 
 After seeding, call `POST /api/admin/registry/refresh` — returns `{ adapters: N }` confirming pickup without a server restart.
+
+In practice, run `scripts/seed-protocols.sql` (see below) rather than the manual INSERT — it uses fixed UUIDs and is idempotent.
+
+### Seeded Chains & Protocols
+
+`scripts/seed-protocols.sql` is idempotent (`ON CONFLICT DO NOTHING`). Run it manually or let `scripts/post-merge.sh` handle it on merge.
+
+| Protocol | Chain | Protocol UUID |
+|---|---|---|
+| Aave V3 | Ethereum | `cc000001-…-0001` |
+| Aave V3 | Arbitrum | `cc000001-…-0002` |
+| Aave V3 | Base | `cc000001-…-0003` |
+| Aave V3 | OP Mainnet | `cc000001-…-0004` |
+| Aave V3 | Polygon | `cc000001-…-0005` |
+| Uniswap V3 | Ethereum | `cc000001-…-0006` |
+| Uniswap V3 | Arbitrum | `cc000001-…-0007` |
+| Uniswap V3 | Base | `cc000001-…-0008` |
+| Uniswap V3 | OP Mainnet | `cc000001-…-0009` |
+| Uniswap V3 | Polygon | `cc000001-…-0010` |
+
+Chain UUIDs use the `bb000001-…-{01-05}` pattern (ethereum=01, arbitrum=02, base=03, optimism=04, polygon=05).
+
+The server logs `Protocol registry initialized — adapters: 10` on startup when all rows are present.
 
 ### Authority Citations Seeded
 
@@ -323,6 +348,9 @@ pnpm run typecheck
 
 # Seed authority citations (idempotent — ON CONFLICT DO NOTHING)
 psql $DATABASE_URL -f scripts/seed-citations.sql
+
+# Seed chains and protocol rows (idempotent — ON CONFLICT DO NOTHING)
+psql $DATABASE_URL -f scripts/seed-protocols.sql
 ```
 
 ---
@@ -344,7 +372,8 @@ psql $DATABASE_URL -f scripts/seed-citations.sql
 1. **Clerk** is provisioned automatically by the Replit Auth pane — no manual key entry.
 2. **Schema** is pushed automatically by `scripts/post-merge.sh` (runs on task-agent merges). Manual: `pnpm --filter @workspace/db run push`.
 3. **Citations** are seeded by the post-merge hook. Manual: `psql $DATABASE_URL -f scripts/seed-citations.sql`.
-4. **SESSION_SECRET** must be added as a Replit Secret.
+4. **Chains & Protocols** are seeded by the post-merge hook. Manual: `psql $DATABASE_URL -f scripts/seed-protocols.sql`.
+5. **SESSION_SECRET** must be added as a Replit Secret.
 
 > **Note:** `pnpm --filter @workspace/db run seed` requires Node 24 (`--experimental-strip-types`). The Replit environment runs Node 20 — use the SQL file above instead.
 
@@ -366,30 +395,12 @@ psql $DATABASE_URL -f scripts/seed-citations.sql
 
 | Feature | Blocker |
 |---|---|
+| **`/transactions` ingest page** | Frontend page file and App.tsx route were never created; the API (`GET /api/transactions`, `POST /api/transactions/ingest`) exists and works |
 | **Uniswap V3 LP adapters** (Mint, Burn, Collect) | LP deposit/withdrawal treatment is Notice 2024-57 open-gap — adapter is intentionally deferred until guidance issues |
 | **Bridge / staking adapters** | Pending IRS guidance; Notice 2024-57 categories |
 | **`amount_usd` backfill** | Positions created before the column existed have `amount_usd=null`; harvest scanner shows them but cannot sort by dollar value |
 | **Basis step-up simulator** | Requires FMV at date-of-death — needs an external price oracle (Coingecko, Coinmarketcap, or on-chain TWAP) |
 | **Charitable donation FMV calculator** | Same FMV oracle requirement |
-
-### Seeded Chains & Protocols
-
-`scripts/seed-protocols.sql` is idempotent (`ON CONFLICT DO NOTHING`). Run it manually or let `scripts/post-merge.sh` handle it.
-
-| Protocol | Chain | UUID |
-|---|---|---|
-| Aave V3 | Ethereum | `cc000001-…-0001` |
-| Aave V3 | Arbitrum | `cc000001-…-0002` |
-| Aave V3 | Base | `cc000001-…-0003` |
-| Aave V3 | OP Mainnet | `cc000001-…-0004` |
-| Aave V3 | Polygon | `cc000001-…-0005` |
-| Uniswap V3 | Ethereum | `cc000001-…-0006` |
-| Uniswap V3 | Arbitrum | `cc000001-…-0007` |
-| Uniswap V3 | Base | `cc000001-…-0008` |
-| Uniswap V3 | OP Mainnet | `cc000001-…-0009` |
-| Uniswap V3 | Polygon | `cc000001-…-0010` |
-
-The server logs `Protocol registry initialized — adapters: 10` on startup when all rows are present.
 
 ---
 
