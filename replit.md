@@ -366,12 +366,30 @@ psql $DATABASE_URL -f scripts/seed-citations.sql
 
 | Feature | Blocker |
 |---|---|
-| **Protocols seeded in DB** | No `aave_v3` / `uniswap_v3` rows exist yet — adapters register but classify nothing until a protocol row with the matching slug is inserted and `POST /admin/registry/refresh` is called |
 | **Uniswap V3 LP adapters** (Mint, Burn, Collect) | LP deposit/withdrawal treatment is Notice 2024-57 open-gap — adapter is intentionally deferred until guidance issues |
 | **Bridge / staking adapters** | Pending IRS guidance; Notice 2024-57 categories |
 | **`amount_usd` backfill** | Positions created before the column existed have `amount_usd=null`; harvest scanner shows them but cannot sort by dollar value |
 | **Basis step-up simulator** | Requires FMV at date-of-death — needs an external price oracle (Coingecko, Coinmarketcap, or on-chain TWAP) |
 | **Charitable donation FMV calculator** | Same FMV oracle requirement |
+
+### Seeded Chains & Protocols
+
+`scripts/seed-protocols.sql` is idempotent (`ON CONFLICT DO NOTHING`). Run it manually or let `scripts/post-merge.sh` handle it.
+
+| Protocol | Chain | UUID |
+|---|---|---|
+| Aave V3 | Ethereum | `cc000001-…-0001` |
+| Aave V3 | Arbitrum | `cc000001-…-0002` |
+| Aave V3 | Base | `cc000001-…-0003` |
+| Aave V3 | OP Mainnet | `cc000001-…-0004` |
+| Aave V3 | Polygon | `cc000001-…-0005` |
+| Uniswap V3 | Ethereum | `cc000001-…-0006` |
+| Uniswap V3 | Arbitrum | `cc000001-…-0007` |
+| Uniswap V3 | Base | `cc000001-…-0008` |
+| Uniswap V3 | OP Mainnet | `cc000001-…-0009` |
+| Uniswap V3 | Polygon | `cc000001-…-0010` |
+
+The server logs `Protocol registry initialized — adapters: 10` on startup when all rows are present.
 
 ---
 
