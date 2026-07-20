@@ -7,3 +7,6 @@
 - [DB seeding approach](db-seeding.md) — Node --experimental-strip-types cannot resolve extensionless ESM imports from workspace packages; use psql direct SQL for seeding instead
 - [Authority citation UUIDs](authority-citation-uuids.md) — 10 IRS citations seeded with fixed UUIDs aa000001-...{1-10}; 9=IRC §1001, 10=IRC §165 added for adapter layer
 - [Protocol adapter layer](protocol-adapter-layer.md) — core/adapters + registry + classify route; registry lazily re-inits; adapters: 0 at startup = no protocols seeded yet (expected)
+- [Review rules extraction](review-rules-extraction.md) — OPEN_GAP_EVENT_TYPES + computeRequiresReview + isStale live in core/reviewRules.ts; positions.ts re-exports them
+- [Testing setup](testing-setup.md) — vitest in api-server; 3 test files (reviewRules, washSale, registry); run with pnpm test
+- [Harvest scanner](harvest-scanner.md) — amount_usd (doublePrecision, nullable) on position_records; GET /positions/harvest-candidates; washSaleDetector pure functions; 30-day window
