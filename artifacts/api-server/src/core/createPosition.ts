@@ -1,5 +1,5 @@
 import { db, positionRecordsTable, positionCitationsTable } from "@workspace/db";
-import { computeRequiresReview } from "../routes/positions.js";
+import { computeRequiresReview } from "./reviewRules.js";
 
 export interface CreatePositionInput {
   eventType: string;
@@ -12,6 +12,12 @@ export interface CreatePositionInput {
   chainId?: string | null;
   profileId?: string | null;
   citationIds?: string[];
+  /**
+   * Realized gain/loss in USD at the time of the transaction (positive = gain,
+   * negative = loss). Optional — set by adapters or ingest routes that have
+   * price data; null if unknown. Used by the loss-harvesting scanner.
+   */
+  amountUsd?: number | null;
   /** Consulted only when the event type isn't open-gap and citations exist — see computeRequiresReview. */
   requiresReviewOverride?: boolean;
 }
@@ -45,6 +51,7 @@ export async function createPositionFromClassification(
       rationale: input.rationale,
       profileId: input.profileId ?? null,
       chainId: input.chainId ?? null,
+      amountUsd: input.amountUsd ?? null,
       requiresReview,
     })
     .returning();

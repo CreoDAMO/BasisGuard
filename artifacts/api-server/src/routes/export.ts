@@ -1,29 +1,76 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, positionRecordsTable, positionCitationsTable, authorityCitationsTable, treatmentProfilesTable } from "@workspace/db";
+import {
+  db,
+  positionRecordsTable,
+  positionCitationsTable,
+  authorityCitationsTable,
+  treatmentProfilesTable,
+} from "@workspace/db";
 import { GetAuditPackageQueryParams } from "@workspace/api-zod";
 import { OPEN_GAP_EVENT_TYPES } from "./positions.js";
+import { isStale, STALE_THRESHOLD_DAYS } from "../core/reviewRules.js";
 
 const router: IRouter = Router();
 
-const STALE_THRESHOLD_DAYS = 180;
+// ── Open-gap comment-letter metadata ─────────────────────────────────────────
+// Must stay in sync with the six IRS-guidance-gap entries in OPEN_GAP_EVENT_TYPES
+// (core/reviewRules.ts). aave_withdraw and aave_liquidation are intentionally
+// absent — those force review for fact-pattern reasons, not regulatory gaps.
+const OPEN_GAP_EVENTS: Record<string, { pending_notices: string[]; summary: string }> = {
+  lp_deposit: {
+    pending_notices: ["Notice 2024-57"],
+    summary:
+      "Liquidity pool deposits present an unresolved question regarding whether contributing tokens to an AMM pool constitutes a taxable exchange under IRC §1001. IRS guidance in Notice 2024-57 acknowledges this gap and defers definitive treatment. Practitioners currently apply reasonable basis positions supported by economic substance analysis.",
+  },
+  lp_withdrawal: {
+    pending_notices: ["Notice 2024-57"],
+    summary:
+      "LP withdrawals raise parallel questions to deposits: whether the return of underlying assets upon pool exit constitutes a taxable disposition of LP tokens. The Cottage Savings realization doctrine is the primary analytical framework in the absence of direct IRS guidance.",
+  },
+  defi_yield: {
+    pending_notices: ["Notice 2024-57"],
+    summary:
+      "DeFi yield farming distributions lack specific IRS guidance. Practitioners are split between immediate ordinary income recognition (Glenshaw Glass accession-to-wealth) and deferred recognition. Notice 2024-57 identifies this as a priority guidance area.",
+  },
+  bridge_transfer: {
+    pending_notices: ["Notice 2024-57"],
+    summary:
+      "Bridge transfers and cross-chain transactions are identified as an open-gap area in Notice 2024-57. The IRS has not addressed whether a bridge transfer constitutes a realization event; the most defensible position is non-recognition with basis carryover, treating the taxpayer as retaining beneficial ownership throughout. Form 8275 disclosure is recommended pending further guidance.",
+  },
+  staking_reward: {
+    pending_notices: ["Rev. Rul. 2023-14"],
+    summary:
+      "While Rev. Rul. 2023-14 clarified staking rewards for cash-basis taxpayers, open questions remain for accrual-basis filers, locked/illiquid staking periods, and liquid staking derivatives (e.g., stETH).",
+  },
+  nft_sale: {
+    pending_notices: ["Notice 2023-27"],
+    summary:
+      "NFT sales involve unresolved questions on collectible status under IRC §408(m), applicable holding period rules for fractionalized NFTs, and basis allocation for bundle purchases. Notice 2023-27 provides a look-through framework but leaves many practical questions open.",
+  },
+};
 
-function isStale(pos: typeof positionRecordsTable.$inferSelect): boolean {
-  if (pos.tier !== "reasonable_basis") return false;
-  if (pos.supersededBy) return false;
-  return Date.now() - pos.createdAt.getTime() > STALE_THRESHOLD_DAYS * 86400000;
-}
+// ── Shared helpers ────────────────────────────────────────────────────────────
 
-async function enrichPosition(pos: typeof positionRecordsTable.$inferSelect, redact = false) {
+async function enrichPosition(
+  pos: typeof positionRecordsTable.$inferSelect,
+  redact = false,
+) {
   const citationRows = await db
     .select({ citation: authorityCitationsTable })
     .from(positionCitationsTable)
-    .innerJoin(authorityCitationsTable, eq(positionCitationsTable.citationId, authorityCitationsTable.id))
+    .innerJoin(
+      authorityCitationsTable,
+      eq(positionCitationsTable.citationId, authorityCitationsTable.id),
+    )
     .where(eq(positionCitationsTable.positionId, pos.id));
 
   let profile = null;
   if (pos.profileId) {
-    const [prof] = await db.select().from(treatmentProfilesTable).where(eq(treatmentProfilesTable.id, pos.profileId));
+    const [prof] = await db
+      .select()
+      .from(treatmentProfilesTable)
+      .where(eq(treatmentProfilesTable.id, pos.profileId));
     if (prof) {
       profile = {
         id: prof.id,
@@ -53,6 +100,7 @@ async function enrichPosition(pos: typeof positionRecordsTable.$inferSelect, red
     reviewer_credential: pos.reviewerCredential ?? null,
     reviewer_signoff_at: pos.reviewerSignoffAt?.toISOString() ?? null,
     superseded_by: pos.supersededBy ?? null,
+    amount_usd: pos.amountUsd ?? null,
     created_at: pos.createdAt.toISOString(),
     is_stale: isStale(pos),
     citations: citationRows.map((r) => ({
@@ -68,62 +116,67 @@ async function enrichPosition(pos: typeof positionRecordsTable.$inferSelect, red
   };
 }
 
-// GET /export/audit-package
-router.get("/export/audit-package", async (req, res): Promise<void> => {
-  const parsed = GetAuditPackageQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const { tax_year, wallet_id } = parsed.data;
-  const redact = req.query.redact_pii === "true";
+// ── Data builders — extracted so the dossier route can call them in parallel ──
 
-  const yearStart = new Date(`${tax_year}-01-01T00:00:00Z`);
-  const yearEnd = new Date(`${tax_year + 1}-01-01T00:00:00Z`);
+async function buildAuditPackageData(
+  taxYear: number,
+  walletId?: string,
+  redact = false,
+) {
+  const yearStart = new Date(`${taxYear}-01-01T00:00:00Z`);
+  const yearEnd = new Date(`${taxYear + 1}-01-01T00:00:00Z`);
 
   const conditions = [];
-  if (wallet_id) conditions.push(eq(positionRecordsTable.walletId, wallet_id));
+  if (walletId) conditions.push(eq(positionRecordsTable.walletId, walletId));
 
-  const allPositions = await db.select().from(positionRecordsTable)
+  const allPositions = await db
+    .select()
+    .from(positionRecordsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
 
-  // Use txDate (actual transaction date) for tax-year bucketing; fall back to
-  // createdAt only for legacy records that predate the tx_date field.
   const yearPositions = allPositions.filter((p) => {
     const taxDate = p.txDate ?? p.createdAt;
     return taxDate >= yearStart && taxDate < yearEnd;
   });
 
-  const enriched = await Promise.all(yearPositions.map((pos) => enrichPosition(pos, redact)));
-  const requiresReviewCount = enriched.filter((p) => p.requires_review && !p.reviewer_signoff_at).length;
+  const enriched = await Promise.all(
+    yearPositions.map((pos) => enrichPosition(pos, redact)),
+  );
+  const requiresReviewCount = enriched.filter(
+    (p) => p.requires_review && !p.reviewer_signoff_at,
+  ).length;
 
-  res.json({
-    tax_year,
-    wallet_id: redact ? "[REDACTED]" : (wallet_id ?? null),
+  return {
+    tax_year: taxYear,
+    wallet_id: redact ? "[REDACTED]" : (walletId ?? null),
     generated_at: new Date().toISOString(),
     positions: enriched,
     total_positions: enriched.length,
     requires_review_count: requiresReviewCount,
-  });
-});
+  };
+}
 
-// GET /export/pattern-report
-router.get("/export/pattern-report", async (_req, res): Promise<void> => {
-  const positions = await db.select({
-    eventType: positionRecordsTable.eventType,
-    tier: positionRecordsTable.tier,
-  }).from(positionRecordsTable);
+async function buildPatternReportData() {
+  const positions = await db
+    .select({ eventType: positionRecordsTable.eventType, tier: positionRecordsTable.tier })
+    .from(positionRecordsTable);
 
-  // Imported from positions.ts — single source of truth for open-gap classification.
-
-  const byEventType: Record<string, { count: number; tiers: Record<string, number>; open_gap: boolean }> = {};
+  const byEventType: Record<
+    string,
+    { count: number; tiers: Record<string, number>; open_gap: boolean }
+  > = {};
 
   for (const pos of positions) {
     if (!byEventType[pos.eventType]) {
-      byEventType[pos.eventType] = { count: 0, tiers: {}, open_gap: OPEN_GAP_EVENT_TYPES.has(pos.eventType) };
+      byEventType[pos.eventType] = {
+        count: 0,
+        tiers: {},
+        open_gap: OPEN_GAP_EVENT_TYPES.has(pos.eventType),
+      };
     }
     byEventType[pos.eventType].count++;
-    byEventType[pos.eventType].tiers[pos.tier] = (byEventType[pos.eventType].tiers[pos.tier] ?? 0) + 1;
+    byEventType[pos.eventType].tiers[pos.tier] =
+      (byEventType[pos.eventType].tiers[pos.tier] ?? 0) + 1;
   }
 
   const entries = Object.entries(byEventType).map(([event_type, data]) => ({
@@ -133,59 +186,22 @@ router.get("/export/pattern-report", async (_req, res): Promise<void> => {
     open_gap: data.open_gap,
   }));
 
-  res.json({
+  return {
     generated_at: new Date().toISOString(),
     total_positions: positions.length,
     entries,
-  });
-});
-
-// GET /export/comment-letter
-// Anonymized aggregate view suitable for submitting IRS comments on open guidance gaps
-router.get("/export/comment-letter", async (_req, res): Promise<void> => {
-  const positions = await db.select().from(positionRecordsTable);
-
-  // Canonical open-gap event types — must stay in sync with OPEN_GAP_EVENT_TYPES in pattern-report above.
-  // bridge_transfer is included in both lists: it is flagged as open-gap in pattern-report
-  // and must appear here so bridge positions are captured in comment-letter exports.
-  const OPEN_GAP_EVENTS: Record<string, { pending_notices: string[]; summary: string }> = {
-    lp_deposit: {
-      pending_notices: ["Notice 2024-57"],
-      summary:
-        "Liquidity pool deposits present an unresolved question regarding whether contributing tokens to an AMM pool constitutes a taxable exchange under IRC §1001. IRS guidance in Notice 2024-57 acknowledges this gap and defers definitive treatment. Practitioners currently apply reasonable basis positions supported by economic substance analysis.",
-    },
-    lp_withdrawal: {
-      pending_notices: ["Notice 2024-57"],
-      summary:
-        "LP withdrawals raise parallel questions to deposits: whether the return of underlying assets upon pool exit constitutes a taxable disposition of LP tokens. The Cottage Savings realization doctrine is the primary analytical framework in the absence of direct IRS guidance.",
-    },
-    defi_yield: {
-      pending_notices: ["Notice 2024-57"],
-      summary:
-        "DeFi yield farming distributions lack specific IRS guidance. Practitioners are split between immediate ordinary income recognition (Glenshaw Glass accession-to-wealth) and deferred recognition. Notice 2024-57 identifies this as a priority guidance area.",
-    },
-    bridge_transfer: {
-      pending_notices: ["Notice 2024-57"],
-      summary:
-        "Bridge transfers and cross-chain transactions are identified as an open-gap area in Notice 2024-57. The IRS has not addressed whether a bridge transfer constitutes a realization event; the most defensible position is non-recognition with basis carryover, treating the taxpayer as retaining beneficial ownership throughout. Form 8275 disclosure is recommended pending further guidance.",
-    },
-    staking_reward: {
-      pending_notices: ["Rev. Rul. 2023-14"],
-      summary:
-        "While Rev. Rul. 2023-14 clarified staking rewards for cash-basis taxpayers, open questions remain for accrual-basis filers, locked/illiquid staking periods, and liquid staking derivatives (e.g., stETH).",
-    },
-    nft_sale: {
-      pending_notices: ["Notice 2023-27"],
-      summary:
-        "NFT sales involve unresolved questions on collectible status under IRC §408(m), applicable holding period rules for fractionalized NFTs, and basis allocation for bundle purchases. Notice 2023-27 provides a look-through framework but leaves many practical questions open.",
-    },
   };
+}
+
+async function buildCommentLetterData() {
+  const positions = await db.select().from(positionRecordsTable);
 
   const byEventType: Record<string, { count: number; tiers: Record<string, number> }> = {};
   for (const pos of positions) {
     if (!byEventType[pos.eventType]) byEventType[pos.eventType] = { count: 0, tiers: {} };
     byEventType[pos.eventType].count++;
-    byEventType[pos.eventType].tiers[pos.tier] = (byEventType[pos.eventType].tiers[pos.tier] ?? 0) + 1;
+    byEventType[pos.eventType].tiers[pos.tier] =
+      (byEventType[pos.eventType].tiers[pos.tier] ?? 0) + 1;
   }
 
   const openGapEntries = Object.entries(byEventType)
@@ -201,29 +217,20 @@ router.get("/export/comment-letter", async (_req, res): Promise<void> => {
 
   const totalOpenGap = openGapEntries.reduce((sum, e) => sum + e.position_count, 0);
 
-  res.json({
+  return {
     generated_at: new Date().toISOString(),
     total_open_gap_positions: totalOpenGap,
     entries: openGapEntries,
     disclaimer:
       "This report contains anonymized aggregate data only. No personally identifiable information or individual taxpayer data is included. This report is intended solely for practitioner use in preparing IRS comment letters regarding open guidance gaps under Notice 2024-57 and related authorities.",
-  });
-});
+  };
+}
 
-// GET /export/cpa-handoff
-router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
-  const taxYear = parseInt(req.query.tax_year as string);
-  if (isNaN(taxYear)) {
-    res.status(400).json({ error: "tax_year is required and must be an integer" });
-    return;
-  }
-
+async function buildCpaHandoffData(taxYear: number) {
   const yearStart = new Date(`${taxYear}-01-01T00:00:00Z`);
   const yearEnd = new Date(`${taxYear + 1}-01-01T00:00:00Z`);
 
   const allPositions = await db.select().from(positionRecordsTable);
-  // Use txDate (actual transaction date) for tax-year bucketing; fall back to
-  // createdAt only for legacy records that predate the tx_date field.
   const yearPositions = allPositions.filter((p) => {
     const taxDate = p.txDate ?? p.createdAt;
     return taxDate >= yearStart && taxDate < yearEnd;
@@ -242,12 +249,18 @@ router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
   if (pending.length > 0)
     openActionItems.push(`${pending.length} position(s) require preparer sign-off before filing.`);
   if (staleRB.length > 0)
-    openActionItems.push(`${staleRB.length} Reasonable Basis position(s) are over ${180} days old and should be reviewed for supersession or upgraded authority.`);
+    openActionItems.push(
+      `${staleRB.length} Reasonable Basis position(s) are over ${STALE_THRESHOLD_DAYS} days old and should be reviewed for supersession or upgraded authority.`,
+    );
   const reasonableBasisCount = yearPositions.filter((p) => p.tier === "reasonable_basis").length;
   if (reasonableBasisCount > 0)
-    openActionItems.push(`${reasonableBasisCount} Reasonable Basis position(s) require Form 8275 disclosure.`);
+    openActionItems.push(
+      `${reasonableBasisCount} Reasonable Basis position(s) require Form 8275 disclosure.`,
+    );
   if (openActionItems.length === 0)
-    openActionItems.push("All positions are signed off. Evidence log is fully attested for this tax year.");
+    openActionItems.push(
+      "All positions are signed off. Evidence log is fully attested for this tax year.",
+    );
 
   const enriched = await Promise.all(yearPositions.map((pos) => enrichPosition(pos, false)));
 
@@ -260,7 +273,7 @@ router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
     "If any open-gap event types are present, confirm Comment Letter prep is on file.",
   ];
 
-  res.json({
+  return {
     generated_at: new Date().toISOString(),
     summary: {
       tax_year: taxYear,
@@ -273,6 +286,80 @@ router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
     },
     positions: enriched,
     preparer_checklist: checklist,
+  };
+}
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+// GET /export/audit-package
+router.get("/export/audit-package", async (req, res): Promise<void> => {
+  const parsed = GetAuditPackageQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { tax_year, wallet_id } = parsed.data;
+  const redact = req.query.redact_pii === "true";
+  res.json(await buildAuditPackageData(tax_year, wallet_id, redact));
+});
+
+// GET /export/pattern-report
+router.get("/export/pattern-report", async (_req, res): Promise<void> => {
+  res.json(await buildPatternReportData());
+});
+
+// GET /export/comment-letter
+router.get("/export/comment-letter", async (_req, res): Promise<void> => {
+  res.json(await buildCommentLetterData());
+});
+
+// GET /export/cpa-handoff
+router.get("/export/cpa-handoff", async (req, res): Promise<void> => {
+  const taxYear = parseInt(req.query.tax_year as string);
+  if (isNaN(taxYear)) {
+    res.status(400).json({ error: "tax_year is required and must be an integer" });
+    return;
+  }
+  res.json(await buildCpaHandoffData(taxYear));
+});
+
+/**
+ * GET /export/dossier
+ *
+ * One-click IRS-ready dossier — all four export views combined into a single
+ * envelope. Runs the four data builders in parallel so total latency is bounded
+ * by the slowest individual query rather than their sum.
+ *
+ * Required: tax_year
+ * Optional: wallet_id, redact_pii
+ */
+router.get("/export/dossier", async (req, res): Promise<void> => {
+  const parsed = GetAuditPackageQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { tax_year, wallet_id } = parsed.data;
+  const redact = req.query.redact_pii === "true";
+
+  const [auditPackage, patternReport, commentLetter, cpaHandoff] = await Promise.all([
+    buildAuditPackageData(tax_year, wallet_id, redact),
+    buildPatternReportData(),
+    buildCommentLetterData(),
+    buildCpaHandoffData(tax_year),
+  ]);
+
+  res.json({
+    generated_at: new Date().toISOString(),
+    dossier_version: "1.0",
+    tax_year,
+    wallet_id: redact ? "[REDACTED]" : (wallet_id ?? null),
+    disclaimer:
+      "This dossier is generated by BasisGuard for practitioner use only. It does not constitute legal, tax, or accounting advice. Retain for a minimum of 7 years. All positions reflect the classification and authority tier at time of generation; positions may be superseded by subsequent guidance.",
+    audit_package: auditPackage,
+    pattern_report: patternReport,
+    comment_letter: commentLetter,
+    cpa_handoff: cpaHandoff,
   });
 });
 

@@ -1,7 +1,15 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, count, isNull, inArray } from "drizzle-orm";
 import { db, positionRecordsTable, positionCitationsTable, authorityCitationsTable, treatmentProfilesTable } from "@workspace/db";
-import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
+import { requireAuth, requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
+import {
+  OPEN_GAP_EVENT_TYPES,
+  computeRequiresReview,
+  isStale,
+  STALE_THRESHOLD_DAYS,
+} from "../core/reviewRules.js";
+export { OPEN_GAP_EVENT_TYPES, computeRequiresReview };
+import { buildHarvestCandidates, type HarvestPosition } from "../core/washSaleDetector.js";
 import {
   CreatePositionBody,
   UpdatePositionBody,
@@ -14,55 +22,6 @@ import {
   ListPositionsQueryParams,
   GetRecentActivityQueryParams,
 } from "@workspace/api-zod";
-
-const STALE_THRESHOLD_DAYS = 180;
-
-/**
- * Canonical set of event types that always force preparer review, regardless of
- * what the caller passes for requires_review. Two different reasons land a type
- * here, and they're not the same thing:
- *
- *   IRS guidance is genuinely pending (Notice 2024-57's six categories below) —
- *   these are also the set surfaced in /export/comment-letter as evidence for
- *   future rulemaking comments.
- *
- *   The correct classification depends on facts a single event can't establish
- *   on its own (aave_withdraw, aave_liquidation — need lot-matching / basis
- *   comparison, not a pending notice). These force review for data reasons,
- *   not regulatory ones, and deliberately do NOT appear in the comment-letter
- *   export — that document is specifically about IRS guidance gaps, and including
- *   fact-pattern gaps there would misrepresent what's actually being asked of the IRS.
- *
- * Keep the first six in sync with OPEN_GAP_EVENTS in export.ts's comment-letter
- * handler. The two Aave entries intentionally have no equivalent there.
- */
-export const OPEN_GAP_EVENT_TYPES = new Set([
-  "lp_deposit",
-  "lp_withdrawal",
-  "defi_yield",
-  "bridge_transfer",
-  "staking_reward",
-  "nft_sale",
-  "aave_withdraw",
-  "aave_liquidation",
-]);
-
-/**
- * Computes the effective requires_review flag for a new position.
- * Rules (in priority order):
- *  1. Open-gap event type → always true, non-overridable.
- *  2. No citations linked → true (a position without any authority cannot be auto-applied).
- *  3. Otherwise → honour the caller's value (default false).
- */
-export function computeRequiresReview(
-  eventType: string,
-  citationIds: string[] | undefined,
-  callerValue: boolean | undefined | null,
-): boolean {
-  if (OPEN_GAP_EVENT_TYPES.has(eventType)) return true;
-  if (!citationIds || citationIds.length === 0) return true;
-  return callerValue ?? false;
-}
 
 const router: IRouter = Router();
 
@@ -79,13 +38,6 @@ async function getCitationsForPosition(positionId: string) {
     created_at: r.citation.createdAt.toISOString(),
     authority_strength: r.citation.authorityStrength,
   }));
-}
-
-function isStale(p: typeof positionRecordsTable.$inferSelect): boolean {
-  if (p.tier !== "reasonable_basis") return false;
-  if (p.supersededBy) return false; // superseded records are not flagged
-  const ageMs = Date.now() - p.createdAt.getTime();
-  return ageMs > STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 }
 
 function serializePosition(p: typeof positionRecordsTable.$inferSelect) {
@@ -107,6 +59,7 @@ function serializePosition(p: typeof positionRecordsTable.$inferSelect) {
     reviewer_credential: p.reviewerCredential ?? null,
     reviewer_signoff_at: p.reviewerSignoffAt?.toISOString() ?? null,
     superseded_by: p.supersededBy ?? null,
+    amount_usd: p.amountUsd ?? null,
     created_at: p.createdAt.toISOString(),
     is_stale: isStale(p),
   };
@@ -315,6 +268,85 @@ router.get("/positions/tier-suggestion", async (req, res): Promise<void> => {
 });
 
 // GET /positions/review-queue  — must be before /:id
+// GET /positions/harvest-candidates
+// Must sit before /positions/:id to avoid the parameterized route capturing "harvest-candidates".
+router.get("/positions/harvest-candidates", requireAuth, async (req, res): Promise<void> => {
+  const rawYear = req.query.tax_year as string | undefined;
+  const walletId = req.query.wallet_id as string | undefined;
+
+  let taxYear: number | null = null;
+  if (rawYear) {
+    taxYear = parseInt(rawYear, 10);
+    if (isNaN(taxYear)) {
+      res.status(400).json({ error: "tax_year must be an integer" });
+      return;
+    }
+  }
+
+  // Fetch all taxable_disposition positions — these are realisation events that
+  // may produce harvestable losses.
+  const rows = await db
+    .select()
+    .from(positionRecordsTable)
+    .where(eq(positionRecordsTable.classification, "taxable_disposition"));
+
+  // Apply optional filters in JS (avoids complex drizzle between() date range)
+  const filtered = rows.filter((p) => {
+    const taxDate = p.txDate ?? p.createdAt;
+    if (taxYear !== null) {
+      const yearStart = new Date(`${taxYear}-01-01T00:00:00Z`);
+      const yearEnd = new Date(`${taxYear + 1}-01-01T00:00:00Z`);
+      if (taxDate < yearStart || taxDate >= yearEnd) return false;
+    }
+    if (walletId && p.walletId !== walletId) return false;
+    return true;
+  });
+
+  const harvestPositions: HarvestPosition[] = filtered.map((p) => ({
+    id: p.id,
+    walletId: p.walletId,
+    eventType: p.eventType,
+    txDate: p.txDate,
+    amountUsd: p.amountUsd,
+    classification: p.classification,
+    tier: p.tier,
+    requiresReview: p.requiresReview,
+    reviewerSignoffAt: p.reviewerSignoffAt,
+  }));
+
+  const candidates = buildHarvestCandidates(harvestPositions);
+
+  res.json({
+    generated_at: new Date().toISOString(),
+    tax_year: taxYear,
+    wallet_id: walletId ?? null,
+    total_candidates: candidates.length,
+    wash_sale_risk_count: candidates.filter((c) => c.washSaleRisk).length,
+    disclaimer:
+      "This scanner identifies positions classified as taxable dispositions that may benefit from " +
+      "loss-harvesting strategies. Wash-sale risk flags are conservative practitioner markers: " +
+      "IRC §1091 applies to stocks and securities; the IRS has not officially extended wash-sale " +
+      "rules to cryptocurrency. Consult qualified tax counsel before acting on these results.",
+    candidates: candidates.map((c) => ({
+      position_id: c.position.id,
+      wallet_id: c.position.walletId ?? null,
+      event_type: c.position.eventType,
+      classification: c.position.classification,
+      tier: c.position.tier,
+      tx_date: c.position.txDate?.toISOString() ?? null,
+      amount_usd: c.position.amountUsd ?? null,
+      requires_review: c.position.requiresReview,
+      reviewer_signoff_at: c.position.reviewerSignoffAt?.toISOString() ?? null,
+      wash_sale_risk: c.washSaleRisk,
+      wash_sale_pairs: c.washSalePairs.map((pair) => ({
+        loss_position_id: pair.lossPositionId,
+        gain_position_id: pair.gainPositionId,
+        days_between: pair.daysBetween,
+      })),
+    })),
+  });
+});
+
 router.get("/positions/review-queue", async (_req, res): Promise<void> => {
   const items = await db.select().from(positionRecordsTable)
     .where(and(eq(positionRecordsTable.requiresReview, true), isNull(positionRecordsTable.reviewerSignoffAt)))

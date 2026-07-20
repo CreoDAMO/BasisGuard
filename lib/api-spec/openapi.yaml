@@ -243,6 +243,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/TierSuggestion"
 
+  /positions/harvest-candidates:
+    get:
+      operationId: getHarvestCandidates
+      tags: [positions]
+      summary: Identify taxable-disposition positions that may be candidates for tax-loss harvesting
+      description: >
+        Returns classified positions with wash-sale risk flags based on a 30-day window.
+        Note: IRC §1091 wash-sale rules apply to stocks and securities; the IRS has not
+        officially extended them to cryptocurrency. Flags here are conservative practitioner
+        markers, not legal determinations.
+      parameters:
+        - name: tax_year
+          in: query
+          schema:
+            type: integer
+        - name: wallet_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Harvest candidates with optional wash-sale risk flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HarvestCandidates"
+
   /positions/{id}:
     get:
       operationId: getPosition
@@ -936,6 +963,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CpaHandoff"
+
+  /export/dossier:
+    get:
+      operationId: getDossier
+      tags: [export]
+      summary: One-click IRS-ready dossier combining all four export views for a tax year
+      description: >
+        Runs audit-package, pattern-report, comment-letter, and cpa-handoff in parallel
+        and returns them as a single envelope. Latency is bounded by the slowest query.
+      parameters:
+        - name: tax_year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: wallet_id
+          in: query
+          schema:
+            type: string
+        - name: redact_pii
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: IRS-ready combined dossier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IrsReadyDossier"
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 components:
@@ -1905,3 +1963,122 @@ components:
         - chain_slug
         - name
         - slug
+
+    # ── IRS-Ready Dossier ──────────────────────────────────────────────────────
+
+    IrsReadyDossier:
+      type: object
+      properties:
+        generated_at:
+          type: string
+        dossier_version:
+          type: string
+        tax_year:
+          type: integer
+        wallet_id:
+          type: string
+          nullable: true
+        disclaimer:
+          type: string
+        audit_package:
+          $ref: "#/components/schemas/AuditPackage"
+        pattern_report:
+          $ref: "#/components/schemas/PatternReport"
+        comment_letter:
+          $ref: "#/components/schemas/CommentLetter"
+        cpa_handoff:
+          $ref: "#/components/schemas/CpaHandoff"
+      required:
+        - generated_at
+        - dossier_version
+        - tax_year
+        - disclaimer
+        - audit_package
+        - pattern_report
+        - comment_letter
+        - cpa_handoff
+
+    # ── Harvest Candidates ─────────────────────────────────────────────────────
+
+    WashSalePair:
+      type: object
+      properties:
+        loss_position_id:
+          type: string
+        gain_position_id:
+          type: string
+        days_between:
+          type: integer
+      required:
+        - loss_position_id
+        - gain_position_id
+        - days_between
+
+    HarvestCandidate:
+      type: object
+      properties:
+        position_id:
+          type: string
+        wallet_id:
+          type: string
+          nullable: true
+        event_type:
+          type: string
+        classification:
+          type: string
+        tier:
+          type: string
+        tx_date:
+          type: string
+          nullable: true
+        amount_usd:
+          type: number
+          nullable: true
+          description: Realized gain (positive) or loss (negative) in USD; null if unknown
+        requires_review:
+          type: boolean
+        reviewer_signoff_at:
+          type: string
+          nullable: true
+        wash_sale_risk:
+          type: boolean
+        wash_sale_pairs:
+          type: array
+          items:
+            $ref: "#/components/schemas/WashSalePair"
+      required:
+        - position_id
+        - event_type
+        - classification
+        - tier
+        - requires_review
+        - wash_sale_risk
+        - wash_sale_pairs
+
+    HarvestCandidates:
+      type: object
+      properties:
+        generated_at:
+          type: string
+        tax_year:
+          type: integer
+          nullable: true
+        wallet_id:
+          type: string
+          nullable: true
+        total_candidates:
+          type: integer
+        wash_sale_risk_count:
+          type: integer
+        disclaimer:
+          type: string
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/HarvestCandidate"
+      required:
+        - generated_at
+        - total_candidates
+        - wash_sale_risk_count
+        - disclaimer
+        - candidates

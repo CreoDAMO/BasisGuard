@@ -20,9 +20,16 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-type ExportVariant = "audit" | "audit-redacted" | "cpa-handoff" | "comment-letter";
+type ExportVariant = "audit" | "audit-redacted" | "cpa-handoff" | "comment-letter" | "dossier";
 
 const VARIANTS: { value: ExportVariant; label: string; description: string; icon: React.ReactNode; needsYear: boolean }[] = [
+  {
+    value: "dossier",
+    label: "IRS-Ready Dossier",
+    description: "One-click combined package: audit evidence, pattern report, comment-letter data, and CPA hand-off in a single signed envelope. The definitive filing artefact.",
+    icon: <FileText className="h-5 w-5" />,
+    needsYear: true,
+  },
   {
     value: "audit",
     label: "IRS Audit Defense Package",
@@ -77,13 +84,25 @@ export default function ExportPage() {
     { query: { enabled: false, queryKey: getGetCpaHandoffQueryKey({ tax_year: taxYear }) } }
   );
 
+  const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+
   const handleExport = async () => {
     setIsExporting(true);
     setPackageResult(null);
     try {
       let data: any;
 
-      if (variant === "audit" || variant === "audit-redacted") {
+      if (variant === "dossier") {
+        // Direct fetch — no generated hook yet for the dossier endpoint
+        const params = new URLSearchParams({ tax_year: String(taxYear) });
+        if (isRedacted) params.set("redact_pii", "true");
+        const resp = await fetch(`${BASE}/api/export/dossier?${params}`);
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          throw new Error((body as any).error ?? `HTTP ${resp.status}`);
+        }
+        data = await resp.json();
+      } else if (variant === "audit" || variant === "audit-redacted") {
         const result = await refetchAudit();
         data = result.data;
       } else if (variant === "comment-letter") {
@@ -116,7 +135,9 @@ export default function ExportPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = v === "comment-letter"
+    a.download = v === "dossier"
+      ? `basisguard_irs_dossier_${year}.json`
+      : v === "comment-letter"
       ? `basisguard_comment_letter_${new Date().getFullYear()}.json`
       : v === "cpa-handoff"
       ? `basisguard_cpa_handoff_${year}.json`
