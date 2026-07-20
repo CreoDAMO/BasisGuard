@@ -79,6 +79,24 @@ const CITATIONS = [
     url: "https://www.federalregister.gov/documents/2024/12/30/2024-30780/gross-proceeds-reporting-by-brokers-that-regularly-provide-services-effectuating-digital-asset-sales",
     authorityStrength: "non_binding_persuasive" as const,
   },
+  {
+    id: "aa000001-0000-0000-0000-000000000009",
+    type: "Statute" as const,
+    reference: "IRC §1001",
+    summary:
+      "Gain or loss is realized upon the sale or other disposition of property, measured against adjusted basis. A transfer that does not change beneficial ownership of an asset (e.g., posting it as loan collateral, or its later return) is not itself a disposition; a materially different property received in exchange is (Cottage Savings Ass'n, 499 U.S. 554).",
+    url: "https://www.law.cornell.edu/uscode/text/26/1001",
+    authorityStrength: "binding_on_courts" as const,
+  },
+  {
+    id: "aa000001-0000-0000-0000-000000000010",
+    type: "Statute" as const,
+    reference: "IRC §165",
+    summary:
+      "Allows a deduction for losses sustained during the taxable year and not compensated by insurance or otherwise. A forced sale of collateral (e.g., DeFi liquidation) realizes gain or loss under §1001 based on FMV at disposition versus basis — §165 only produces a deductible loss where that computation is negative; it does not itself presume a loss.",
+    url: "https://www.law.cornell.edu/uscode/text/26/165",
+    authorityStrength: "binding_on_courts" as const,
+  },
 ];
 
 async function seed() {

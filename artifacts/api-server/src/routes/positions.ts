@@ -18,11 +18,23 @@ import {
 const STALE_THRESHOLD_DAYS = 180;
 
 /**
- * Canonical set of open-gap event types per Notice 2024-57 and related IRS authority.
- * Any position with one of these event types must go through preparer review regardless
- * of what the caller passes for requires_review.
+ * Canonical set of event types that always force preparer review, regardless of
+ * what the caller passes for requires_review. Two different reasons land a type
+ * here, and they're not the same thing:
  *
- * Keep in sync with OPEN_GAP_EVENT_TYPES in export.ts and OPEN_GAP_EVENTS in comment-letter.
+ *   IRS guidance is genuinely pending (Notice 2024-57's six categories below) —
+ *   these are also the set surfaced in /export/comment-letter as evidence for
+ *   future rulemaking comments.
+ *
+ *   The correct classification depends on facts a single event can't establish
+ *   on its own (aave_withdraw, aave_liquidation — need lot-matching / basis
+ *   comparison, not a pending notice). These force review for data reasons,
+ *   not regulatory ones, and deliberately do NOT appear in the comment-letter
+ *   export — that document is specifically about IRS guidance gaps, and including
+ *   fact-pattern gaps there would misrepresent what's actually being asked of the IRS.
+ *
+ * Keep the first six in sync with OPEN_GAP_EVENTS in export.ts's comment-letter
+ * handler. The two Aave entries intentionally have no equivalent there.
  */
 export const OPEN_GAP_EVENT_TYPES = new Set([
   "lp_deposit",
@@ -31,6 +43,8 @@ export const OPEN_GAP_EVENT_TYPES = new Set([
   "bridge_transfer",
   "staking_reward",
   "nft_sale",
+  "aave_withdraw",
+  "aave_liquidation",
 ]);
 
 /**
@@ -40,7 +54,7 @@ export const OPEN_GAP_EVENT_TYPES = new Set([
  *  2. No citations linked → true (a position without any authority cannot be auto-applied).
  *  3. Otherwise → honour the caller's value (default false).
  */
-function computeRequiresReview(
+export function computeRequiresReview(
   eventType: string,
   citationIds: string[] | undefined,
   callerValue: boolean | undefined | null,

@@ -67,5 +67,21 @@ VALUES
     'REPEALED — No longer valid authority. T.D. 10021 (December 30, 2024) extended 1099-DA broker reporting rules to DeFi/non-custodial ''trading front-end service providers'' under IRC §6045. Congress repealed it via the Congressional Review Act (H.J. Res. 25, signed April 10, 2025). It is not current law and must not be cited as live authority. Retained here for historical reference only.',
     'https://www.federalregister.gov/documents/2024/12/30/2024-30780/gross-proceeds-reporting-by-brokers-that-regularly-provide-services-effectuating-digital-asset-sales',
     'non_binding_persuasive'
+  ),
+  (
+    'aa000001-0000-0000-0000-000000000009',
+    'Statute',
+    'IRC §1001',
+    'Gain or loss is realized upon the sale or other disposition of property, measured against adjusted basis. A transfer that does not change beneficial ownership of an asset (e.g., posting it as loan collateral, or its later return) is not itself a disposition; a materially different property received in exchange is (Cottage Savings Ass''n, 499 U.S. 554).',
+    'https://www.law.cornell.edu/uscode/text/26/1001',
+    'binding_on_courts'
+  ),
+  (
+    'aa000001-0000-0000-0000-000000000010',
+    'Statute',
+    'IRC §165',
+    'Allows a deduction for losses sustained during the taxable year and not compensated by insurance or otherwise. A forced sale of collateral (e.g., DeFi liquidation) realizes gain or loss under §1001 based on FMV at disposition versus basis — §165 only produces a deductible loss where that computation is negative; it does not itself presume a loss.',
+    'https://www.law.cornell.edu/uscode/text/26/165',
+    'binding_on_courts'
   )
 ON CONFLICT (id) DO NOTHING;

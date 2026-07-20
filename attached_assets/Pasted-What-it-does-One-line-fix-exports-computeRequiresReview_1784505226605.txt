@@ -1,0 +1,20 @@
+What it does:
+One-line fix: exports computeRequiresReview so it has exactly one implementation now
+Adds IRC §1001 and §165 to seed-citations.ts — real statute citations the Aave adapter needed and your library didn't have
+New core/createPosition.ts — the shared insert path; transactions.ts now calls it instead of carrying its own copy of the logic
+New core/adapters/base.ts + core/adapters/aave.ts + core/protocolRegistry.ts — registry keyed by real chain_id/protocol_id UUIDs, Aave adapter with real tier values and real citation UUIDs
+What I deliberately left honest rather than fake-complete:
+decodeLog() in the Aave adapter is a stub returning null — real viem log decoding depends on whether you're reading logs straight from an RPC receipt or through an indexer, and I didn't want to hand you decoding logic I hadn't verified against actual Aave V3 event signatures
+I dropped RewardsClaimed entirely rather than keep the draft's version — Aave rewards are emitted by a separate Rewards Controller contract, not the Pool contract this ABI covers, so it needs its own adapter and a verified ABI, not a guess
+Nothing calls registry.parseTransaction() yet — there's no route or job that walks raw_transactions where processed = false and runs them through it. That's the piece that actually makes ingestion → auto-classification real instead of manual
+Still open, worth a decision rather than a silent default: should aave_withdraw and aave_liquidation go into the canonical OPEN_GAP_EVENT_TYPES set? Right now they force review only because the adapter explicitly sets requiresReviewOverride: true — same manual-flag risk I flagged on the draft, just narrowed to two events instead of six. Your call whether that's the right permanent boundary or whether these belong in the structural list.
+
+should aave_withdraw and aave_liquidation go into the canonical OPEN_GAP_EVENT_TYPES set? Right now they force review only because the adapter explicitly sets requiresReviewOverride: true — same manual-flag risk I flagged on the draft, just narrowed to two events instead of six. Yes let's add it know, and close that gap
+
+Done — same patch file, updated. Two changes:
+
+**`OPEN_GAP_EVENT_TYPES` now includes `aave_withdraw` and `aave_liquidation`.** Review is forced structurally by event type now, same as the original six — not by a flag a future handler could forget to set. Removed the now-redundant `requiresReviewOverride: true` from both branches in the Aave adapter since it's not doing anything anymore.
+
+**One deliberate thing I didn't do, worth confirming:** I didn't add these two to the comment-letter export's `OPEN_GAP_EVENTS` object, and I rewrote the comment on the canonical set to explain why. That list is specifically framed as evidence for a future comment letter to the IRS about *pending guidance* — the original six are there because Notice 2024-57 says the IRS hasn't ruled yet. `aave_withdraw`/`aave_liquidation` aren't waiting on IRS guidance at all — they're waiting on lot-matching data a single event can't supply. Same "always review" outcome, different reason. Folding them into the comment-letter set would make it look like you're asking the IRS to clarify something that's actually just a data problem on your end, which would weaken the letter's credibility on the six items that are real regulatory gaps.
+
+If that distinction doesn't hold up the way I think it does, easy to fold them in — but as it stands, keeping them out is the more accurate document.

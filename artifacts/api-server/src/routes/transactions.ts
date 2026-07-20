@@ -1,15 +1,12 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
-import {
-  db,
-  rawTransactionsTable,
-  chainsTable,
-  protocolsTable,
-  positionRecordsTable,
-  positionCitationsTable,
-} from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
+import { db, rawTransactionsTable, chainsTable, protocolsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth.js";
-import { OPEN_GAP_EVENT_TYPES } from "./positions.js";
+import {
+  createPositionFromClassification,
+  type CreatePositionInput,
+} from "../core/createPosition.js";
+import { registry } from "../core/protocolRegistry.js";
 
 const router: IRouter = Router();
 
@@ -30,7 +27,8 @@ router.get("/transactions", requireAuth, async (req, res): Promise<void> => {
  * Accepts a decoded on-chain event and records it. If the caller also supplies
  * classification data (classification + tier + rationale) a Position Record is
  * created immediately with requires_review enforcement applied. Otherwise the
- * raw transaction is stored with processed=false for future adapter processing.
+ * raw transaction is stored with processed=false for future adapter processing
+ * via POST /transactions/classify.
  *
  * Required fields: chain_id, wallet_address, event_type
  * Optional: tx_hash, tx_date, protocol_id, raw_data
@@ -98,36 +96,26 @@ router.post("/transactions/ingest", requireAuth, async (req, res): Promise<void>
     })
     .returning();
 
-  // If classification data is present, auto-create a Position Record
+  // If classification data is present, auto-create a Position Record via the
+  // shared helper — same computeRequiresReview rules the adapters and the
+  // /positions route use, no separately maintained copy of the logic here.
   let position: Record<string, unknown> | null = null;
   if (classification && tier && rationale) {
     const citationIds = Array.isArray(citation_ids) ? (citation_ids as string[]) : [];
-    const isOpenGap = OPEN_GAP_EVENT_TYPES.has(event_type as string);
-    const requiresReview = isOpenGap || citationIds.length === 0;
 
-    const [pos] = await db
-      .insert(positionRecordsTable)
-      .values({
-        txId: (tx_hash as string) ?? null,
-        txDate: tx_date ? new Date(tx_date as string) : null,
-        walletId: wallet_address as string,
-        eventType: event_type as string,
-        classification: classification as string,
-        tier: tier as string,
-        rationale: rationale as string,
-        profileId: (profile_id as string) ?? null,
-        chainId: chain_id as string,
-        requiresReview,
-      })
-      .returning();
+    const pos = await createPositionFromClassification({
+      eventType: event_type as string,
+      classification: classification as string,
+      tier: tier as CreatePositionInput["tier"],
+      rationale: rationale as string,
+      walletId: wallet_address as string,
+      txId: (tx_hash as string) ?? null,
+      txDate: tx_date ? new Date(tx_date as string) : null,
+      chainId: chain_id as string,
+      profileId: (profile_id as string) ?? null,
+      citationIds,
+    });
 
-    if (citationIds.length > 0) {
-      await db.insert(positionCitationsTable).values(
-        citationIds.map((cid) => ({ positionId: pos.id, citationId: cid }))
-      );
-    }
-
-    // Link raw tx → position record
     await db
       .update(rawTransactionsTable)
       .set({ processed: true, positionRecordId: pos.id })
@@ -151,6 +139,89 @@ router.post("/transactions/ingest", requireAuth, async (req, res): Promise<void>
       position_record_id: position ? (position.id as string) : null,
     },
     position,
+  });
+});
+
+/**
+ * POST /transactions/classify
+ *
+ * Walks raw_transactions where processed=false and runs each through the
+ * ProtocolRegistry. Transactions without a registered protocol adapter are
+ * skipped (left unprocessed). Returns a summary of what was classified.
+ *
+ * Query params:
+ *   - limit   Max transactions to process in one call (default 50, max 200).
+ *   - protocol_id   If supplied, only classify transactions for this protocol.
+ */
+router.post("/transactions/classify", requireAuth, async (req, res): Promise<void> => {
+  const rawLimit = parseInt((req.query.limit as string) ?? "50", 10);
+  const limit = isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 200);
+  const protocolId = req.query.protocol_id as string | undefined;
+
+  const txs = await db
+    .select()
+    .from(rawTransactionsTable)
+    .where(
+      and(
+        eq(rawTransactionsTable.processed, false),
+        protocolId ? eq(rawTransactionsTable.protocolId, protocolId) : undefined,
+      ),
+    )
+    .orderBy(rawTransactionsTable.createdAt)
+    .limit(limit);
+
+  let classified = 0;
+  let skipped = 0;
+  const errors: Array<{ txId: string; error: string }> = [];
+
+  for (const tx of txs) {
+    try {
+      const events = await registry.parseTransaction(tx);
+
+      if (events.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      // Use the first event to set positionRecordId on the raw tx.
+      // A transaction can emit multiple classifiable events (e.g. multi-hop swaps);
+      // each gets its own Position Record.
+      let firstPositionId: string | null = null;
+
+      for (const event of events) {
+        const position = await createPositionFromClassification({
+          eventType: event.eventType,
+          classification: event.classification,
+          tier: event.tier,
+          rationale: event.rationale,
+          walletId: tx.walletAddress,
+          txId: tx.txHash,
+          txDate: tx.txDate,
+          chainId: tx.chainId,
+          citationIds: event.citationIds,
+          requiresReviewOverride: event.requiresReviewOverride,
+        });
+        firstPositionId ??= position.id;
+        classified++;
+      }
+
+      await db
+        .update(rawTransactionsTable)
+        .set({ processed: true, positionRecordId: firstPositionId })
+        .where(eq(rawTransactionsTable.id, tx.id));
+    } catch (err) {
+      errors.push({
+        txId: tx.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  res.json({
+    total_fetched: txs.length,
+    classified,
+    skipped,
+    errors,
   });
 });
 

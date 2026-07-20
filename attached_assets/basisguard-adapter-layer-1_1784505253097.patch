@@ -1,0 +1,421 @@
+diff --git a/artifacts/api-server/src/core/adapters/aave.ts b/artifacts/api-server/src/core/adapters/aave.ts
+new file mode 100644
+index 0000000..dffb165
+--- /dev/null
++++ b/artifacts/api-server/src/core/adapters/aave.ts
+@@ -0,0 +1,123 @@
++import { createPublicClient, http, parseAbiItem } from "viem";
++import { mainnet, arbitrum, base } from "viem/chains";
++import type { RawTransaction } from "@workspace/db";
++import { BaseProtocolAdapter, type ParsedEvent } from "./base.js";
++
++// Fixed UUIDs from lib/db/src/seed-citations.ts — keep these in sync with that file.
++const CITATIONS = {
++  NOTICE_2014_21: "aa000001-0000-0000-0000-000000000006",
++  NOTICE_2024_57: "aa000001-0000-0000-0000-000000000002",
++  REV_RUL_2023_14: "aa000001-0000-0000-0000-000000000001",
++  COTTAGE_SAVINGS: "aa000001-0000-0000-0000-000000000003",
++  IRC_1001: "aa000001-0000-0000-0000-000000000009",
++  IRC_165: "aa000001-0000-0000-0000-000000000010",
++} as const;
++
++const AAVE_V3_POOL_ABI = [
++  parseAbiItem(
++    "event Supply(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode)",
++  ),
++  parseAbiItem("event Borrow(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint8 interestRateMode, uint256 borrowRate, uint16 indexed referralCode)"),
++  parseAbiItem("event Repay(address indexed reserve, address indexed user, address indexed repayer, uint256 amount, bool useATokens)"),
++  parseAbiItem("event Withdraw(address indexed reserve, address indexed user, address indexed to, uint256 amount)"),
++  parseAbiItem(
++    "event LiquidationCall(address indexed collateralAsset, address indexed debtAsset, address indexed user, uint256 debtToCover, uint256 liquidatedCollateralAmount, address liquidator, bool receiveAToken)",
++  ),
++] as const;
++
++const VIEM_CHAINS: Record<string, typeof mainnet> = { ethereum: mainnet, arbitrum, base };
++
++export class AaveAdapter extends BaseProtocolAdapter {
++  async parse(tx: RawTransaction): Promise<ParsedEvent[]> {
++    if (!tx.txHash) return [];
++
++    const chainKey = (this.chain.slug ?? "ethereum") as keyof typeof VIEM_CHAINS;
++    const rpcUrl = (this.chain.metadata as { rpc_url?: string } | null)?.rpc_url;
++    const client = createPublicClient({
++      chain: VIEM_CHAINS[chainKey] ?? mainnet,
++      transport: http(rpcUrl),
++    });
++
++    const receipt = await client.getTransactionReceipt({ txHash: tx.txHash as `0x${string}` });
++    const events: ParsedEvent[] = [];
++
++    for (const log of receipt.logs) {
++      const decoded = this.decodeLog(log);
++      if (decoded) events.push(...this.classify(decoded));
++    }
++
++    return events;
++  }
++
++  private decodeLog(log: unknown): { name: string; args: Record<string, unknown> } | null {
++    // Real decoding: viem's parseEventLogs/decodeEventLog against AAVE_V3_POOL_ABI.
++    // Left as an integration point — depends on how logs arrive (RPC vs indexer).
++    return null;
++  }
++
++  private classify(event: { name: string; args: Record<string, unknown> }): ParsedEvent[] {
++    switch (event.name) {
++      case "Supply":
++        return [{
++          eventType: "aave_deposit",
++          classification: "non_taxable_collateral_transfer",
++          tier: "substantial_authority",
++          rationale:
++            "Posting an asset as loan collateral does not change beneficial ownership and is not a sale or exchange under IRC §1001 — the depositor retains the right to withdraw the same asset.",
++          citationIds: [CITATIONS.IRC_1001, CITATIONS.NOTICE_2014_21],
++        }];
++
++      case "Borrow":
++        return [{
++          eventType: "aave_borrow",
++          classification: "non_taxable_loan",
++          tier: "substantial_authority",
++          rationale: "Loan proceeds are not income and borrowing against collateral is not a disposition of the collateral under IRC §1001.",
++          citationIds: [CITATIONS.IRC_1001],
++        }];
++
++      case "Repay":
++        return [{
++          eventType: "aave_repay",
++          classification: "loan_repayment",
++          tier: "substantial_authority",
++          rationale: "Repayment of loan principal is not a taxable event; it extinguishes a liability rather than disposing of property at a gain or loss.",
++          citationIds: [CITATIONS.IRC_1001],
++        }];
++
++      case "Withdraw":
++        // Deliberately NOT asserted as a flat "taxable_disposition." Whether this realizes
++        // gain/loss depends on comparing the withdrawn amount against the specific deposit
++        // lot it closes out (aTokens can rebase, so withdrawn ≠ deposited is common) — a
++        // single event can't resolve that without lot-matching. Forced to review either way.
++        return [{
++          eventType: "aave_withdraw",
++          classification: "disposition_pending_lot_match",
++          tier: "reasonable_basis",
++          rationale:
++            "Withdrawal of previously-deposited collateral realizes gain or loss under IRC §1001 only to the extent the withdrawn amount differs from the original deposit lot (e.g. accrued aToken interest). Requires matching against the specific deposit lot; not determinable from this event alone.",
++          citationIds: [CITATIONS.IRC_1001, CITATIONS.COTTAGE_SAVINGS],
++          // requiresReviewOverride no longer needed — aave_withdraw is now in
++          // OPEN_GAP_EVENT_TYPES, which forces review structurally.
++        }];
++
++      case "LiquidationCall":
++        // Same reasoning: a forced sale of collateral at current FMV realizes gain or loss
++        // relative to basis — it is not definitionally a loss. §165 only bites if the
++        // computed result is negative.
++        return [{
++          eventType: "aave_liquidation",
++          classification: "disposition_pending_basis_comparison",
++          tier: "reasonable_basis",
++          rationale:
++            "Forced liquidation of collateral is a disposition at fair market value under IRC §1001; whether it produces a gain or a deductible §165 loss depends on FMV at liquidation versus adjusted basis, which this event does not by itself establish.",
++          citationIds: [CITATIONS.IRC_1001, CITATIONS.IRC_165],
++          // requiresReviewOverride no longer needed — aave_liquidation is now in
++          // OPEN_GAP_EVENT_TYPES, which forces review structurally.
++        }];
++
++      default:
++        return [];
++    }
++  }
++}
+diff --git a/artifacts/api-server/src/core/adapters/base.ts b/artifacts/api-server/src/core/adapters/base.ts
+new file mode 100644
+index 0000000..08c18bb
+--- /dev/null
++++ b/artifacts/api-server/src/core/adapters/base.ts
+@@ -0,0 +1,22 @@
++import type { RawTransaction, Chain } from "@workspace/db";
++
++/**
++ * One adapter per protocol. parse() reads a single raw_transactions row
++ * (already chain/protocol-validated by the ingest route) and returns zero
++ * or more Position Records worth of classification data — it does not
++ * insert anything itself; callers pass the result to createPositionFromClassification.
++ */
++export abstract class BaseProtocolAdapter {
++  constructor(protected chain: Chain) {}
++
++  abstract parse(tx: RawTransaction): Promise<ParsedEvent[]>;
++}
++
++export interface ParsedEvent {
++  eventType: string;
++  classification: string;
++  tier: "will" | "should" | "more_likely_than_not" | "substantial_authority" | "reasonable_basis";
++  rationale: string;
++  citationIds: string[];
++  requiresReviewOverride?: boolean;
++}
+diff --git a/artifacts/api-server/src/core/createPosition.ts b/artifacts/api-server/src/core/createPosition.ts
+new file mode 100644
+index 0000000..c451dff
+--- /dev/null
++++ b/artifacts/api-server/src/core/createPosition.ts
+@@ -0,0 +1,55 @@
++import { db, positionRecordsTable, positionCitationsTable } from "@workspace/db";
++import { computeRequiresReview } from "../routes/positions.js";
++
++export interface CreatePositionInput {
++  eventType: string;
++  classification: string;
++  tier: "will" | "should" | "more_likely_than_not" | "substantial_authority" | "reasonable_basis";
++  rationale: string;
++  walletId?: string | null;
++  txId?: string | null;
++  txDate?: Date | null;
++  chainId?: string | null;
++  profileId?: string | null;
++  citationIds?: string[];
++  /** Only consulted when the event type isn't open-gap and citations exist — see computeRequiresReview. */
++  requiresReviewOverride?: boolean;
++}
++
++/**
++ * Single, shared path for creating a Position Record. Both POST /transactions/ingest
++ * and every protocol adapter call this instead of re-deriving requires_review or
++ * duplicating the insert — one rule, one insert shape, no drift between call sites.
++ */
++export async function createPositionFromClassification(input: CreatePositionInput) {
++  const citationIds = input.citationIds ?? [];
++  const requiresReview = computeRequiresReview(
++    input.eventType,
++    citationIds,
++    input.requiresReviewOverride,
++  );
++
++  const [position] = await db
++    .insert(positionRecordsTable)
++    .values({
++      txId: input.txId ?? null,
++      txDate: input.txDate ?? null,
++      walletId: input.walletId ?? null,
++      eventType: input.eventType,
++      classification: input.classification,
++      tier: input.tier,
++      rationale: input.rationale,
++      profileId: input.profileId ?? null,
++      chainId: input.chainId ?? null,
++      requiresReview,
++    })
++    .returning();
++
++  if (citationIds.length > 0) {
++    await db.insert(positionCitationsTable).values(
++      citationIds.map((citationId) => ({ positionId: position.id, citationId })),
++    );
++  }
++
++  return position;
++}
+diff --git a/artifacts/api-server/src/core/protocolRegistry.ts b/artifacts/api-server/src/core/protocolRegistry.ts
+new file mode 100644
+index 0000000..eb061d9
+--- /dev/null
++++ b/artifacts/api-server/src/core/protocolRegistry.ts
+@@ -0,0 +1,45 @@
++import { db, chainsTable, protocolsTable, type RawTransaction, type Chain } from "@workspace/db";
++import { BaseProtocolAdapter, type ParsedEvent } from "./adapters/base.js";
++import { AaveAdapter } from "./adapters/aave.js";
++
++// Protocol slug → adapter class. Add Uniswap/Bridge/Coinbase here once built the same way.
++const ADAPTER_CLASSES: Record<string, new (chain: Chain) => BaseProtocolAdapter> = {
++  aave_v3: AaveAdapter,
++};
++
++export class ProtocolRegistry {
++  // protocol_id (uuid) -> adapter instance
++  private adapters = new Map<string, BaseProtocolAdapter>();
++  private chainsById = new Map<string, Chain>();
++
++  async initialize(): Promise<void> {
++    const [allChains, allProtocols] = await Promise.all([
++      db.select().from(chainsTable),
++      db.select().from(protocolsTable),
++    ]);
++
++    this.chainsById = new Map(allChains.map((c) => [c.id, c]));
++    this.adapters.clear();
++
++    for (const protocol of allProtocols) {
++      const AdapterClass = ADAPTER_CLASSES[protocol.slug];
++      const chain = this.chainsById.get(protocol.chainId);
++      if (!AdapterClass || !chain) continue;
++      this.adapters.set(protocol.id, new AdapterClass(chain));
++    }
++  }
++
++  /**
++   * Returns classified events for a raw transaction, or an empty array if no
++   * adapter is registered for its protocol_id — callers should leave those
++   * rows with processed=false rather than guessing.
++   */
++  async parseTransaction(tx: RawTransaction): Promise<ParsedEvent[]> {
++    if (!tx.protocolId) return [];
++    const adapter = this.adapters.get(tx.protocolId);
++    if (!adapter) return [];
++    return adapter.parse(tx);
++  }
++}
++
++export const registry = new ProtocolRegistry();
+diff --git a/artifacts/api-server/src/routes/positions.ts b/artifacts/api-server/src/routes/positions.ts
+index 51fa7c2..6a6aded 100644
+--- a/artifacts/api-server/src/routes/positions.ts
++++ b/artifacts/api-server/src/routes/positions.ts
+@@ -18,11 +18,22 @@ import {
+ const STALE_THRESHOLD_DAYS = 180;
+ 
+ /**
+- * Canonical set of open-gap event types per Notice 2024-57 and related IRS authority.
+- * Any position with one of these event types must go through preparer review regardless
+- * of what the caller passes for requires_review.
++ * Canonical set of event types that always force preparer review, regardless of
++ * what the caller passes for requires_review. Two different reasons land a type
++ * here, and they're not the same thing:
++ *   - IRS guidance is genuinely pending (Notice 2024-57's six categories below) —
++ *     these are also the set surfaced in /export/comment-letter as evidence for
++ *     future rulemaking comments.
++ *   - The correct classification depends on facts a single event can't establish
++ *     on its own (aave_withdraw, aave_liquidation — need lot-matching / basis
++ *     comparison, not a pending notice). These force review for data reasons,
++ *     not regulatory ones, and deliberately do NOT appear in the comment-letter
++ *     export — that document is specifically about IRS guidance gaps, and
++ *     including fact-pattern gaps there would misrepresent what's actually
++ *     being asked of the IRS.
+  *
+- * Keep in sync with OPEN_GAP_EVENT_TYPES in export.ts and OPEN_GAP_EVENTS in comment-letter.
++ * Keep the first six in sync with OPEN_GAP_EVENTS in export.ts's comment-letter
++ * handler. The two Aave entries intentionally have no equivalent there.
+  */
+ export const OPEN_GAP_EVENT_TYPES = new Set([
+   "lp_deposit",
+@@ -31,6 +42,8 @@ export const OPEN_GAP_EVENT_TYPES = new Set([
+   "bridge_transfer",
+   "staking_reward",
+   "nft_sale",
++  "aave_withdraw",
++  "aave_liquidation",
+ ]);
+ 
+ /**
+@@ -40,7 +53,7 @@ export const OPEN_GAP_EVENT_TYPES = new Set([
+  *  2. No citations linked → true (a position without any authority cannot be auto-applied).
+  *  3. Otherwise → honour the caller's value (default false).
+  */
+-function computeRequiresReview(
++export function computeRequiresReview(
+   eventType: string,
+   citationIds: string[] | undefined,
+   callerValue: boolean | undefined | null,
+diff --git a/artifacts/api-server/src/routes/transactions.ts b/artifacts/api-server/src/routes/transactions.ts
+index 28a5707..b40b95c 100644
+--- a/artifacts/api-server/src/routes/transactions.ts
++++ b/artifacts/api-server/src/routes/transactions.ts
+@@ -1,15 +1,8 @@
+ import { Router, type IRouter } from "express";
+ import { eq, desc } from "drizzle-orm";
+-import {
+-  db,
+-  rawTransactionsTable,
+-  chainsTable,
+-  protocolsTable,
+-  positionRecordsTable,
+-  positionCitationsTable,
+-} from "@workspace/db";
++import { db, rawTransactionsTable, chainsTable, protocolsTable } from "@workspace/db";
+ import { requireAuth } from "../middlewares/auth.js";
+-import { OPEN_GAP_EVENT_TYPES } from "./positions.js";
++import { createPositionFromClassification, type CreatePositionInput } from "../core/createPosition.js";
+ 
+ const router: IRouter = Router();
+ 
+@@ -98,36 +91,26 @@ router.post("/transactions/ingest", requireAuth, async (req, res): Promise<void>
+     })
+     .returning();
+ 
+-  // If classification data is present, auto-create a Position Record
++  // If classification data is present, auto-create a Position Record via the
++  // shared helper — same computeRequiresReview rules the adapters and the
++  // /positions route use, no separately maintained copy of the logic here.
+   let position: Record<string, unknown> | null = null;
+   if (classification && tier && rationale) {
+     const citationIds = Array.isArray(citation_ids) ? (citation_ids as string[]) : [];
+-    const isOpenGap = OPEN_GAP_EVENT_TYPES.has(event_type as string);
+-    const requiresReview = isOpenGap || citationIds.length === 0;
+ 
+-    const [pos] = await db
+-      .insert(positionRecordsTable)
+-      .values({
+-        txId: (tx_hash as string) ?? null,
+-        txDate: tx_date ? new Date(tx_date as string) : null,
+-        walletId: wallet_address as string,
+-        eventType: event_type as string,
+-        classification: classification as string,
+-        tier: tier as string,
+-        rationale: rationale as string,
+-        profileId: (profile_id as string) ?? null,
+-        chainId: chain_id as string,
+-        requiresReview,
+-      })
+-      .returning();
+-
+-    if (citationIds.length > 0) {
+-      await db.insert(positionCitationsTable).values(
+-        citationIds.map((cid) => ({ positionId: pos.id, citationId: cid }))
+-      );
+-    }
++    const pos = await createPositionFromClassification({
++      eventType: event_type as string,
++      classification: classification as string,
++      tier: tier as CreatePositionInput["tier"],
++      rationale: rationale as string,
++      walletId: wallet_address as string,
++      txId: (tx_hash as string) ?? null,
++      txDate: tx_date ? new Date(tx_date as string) : null,
++      chainId: chain_id as string,
++      profileId: (profile_id as string) ?? null,
++      citationIds,
++    });
+ 
+-    // Link raw tx → position record
+     await db
+       .update(rawTransactionsTable)
+       .set({ processed: true, positionRecordId: pos.id })
+diff --git a/lib/db/src/seed-citations.ts b/lib/db/src/seed-citations.ts
+index 74d1158..a921c36 100644
+--- a/lib/db/src/seed-citations.ts
++++ b/lib/db/src/seed-citations.ts
+@@ -79,6 +79,24 @@ const CITATIONS = [
+     url: "https://www.federalregister.gov/documents/2024/12/30/2024-30780/gross-proceeds-reporting-by-brokers-that-regularly-provide-services-effectuating-digital-asset-sales",
+     authorityStrength: "non_binding_persuasive" as const,
+   },
++  {
++    id: "aa000001-0000-0000-0000-000000000009",
++    type: "Statute" as const,
++    reference: "IRC §1001",
++    summary:
++      "Gain or loss is realized upon the sale or other disposition of property, measured against adjusted basis. A transfer that does not change beneficial ownership of an asset (e.g., posting it as loan collateral, or its later return) is not itself a disposition; a materially different property received in exchange is (Cottage Savings).",
++    url: "https://www.law.cornell.edu/uscode/text/26/1001",
++    authorityStrength: "binding_on_courts" as const,
++  },
++  {
++    id: "aa000001-0000-0000-0000-000000000010",
++    type: "Statute" as const,
++    reference: "IRC §165",
++    summary:
++      "Allows a deduction for losses sustained during the taxable year and not compensated by insurance or otherwise. A forced sale of collateral (e.g., DeFi liquidation) realizes gain or loss under §1001 based on FMV at disposition versus basis — §165 only produces a deductible loss where that computation is negative; it does not itself presume a loss.",
++    url: "https://www.law.cornell.edu/uscode/text/26/165",
++    authorityStrength: "binding_on_courts" as const,
++  },
+ ];
+ 
+ async function seed() {
