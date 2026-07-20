@@ -26,6 +26,13 @@ description: How the protocol registry, adapters, and classify route fit togethe
 - Query params: `limit` (default 50, max 200), `protocol_id` (optional filter)
 - Returns: `{ total_fetched, classified, skipped, errors }`
 
+## Registry refresh route
+- `POST /admin/registry/refresh` — gated with `requireRole(ADMIN_ROLES)`
+- Calls `registry.initialize()` directly (bypasses the `ensureInitialized` guard)
+- Returns `{ refreshed_at, adapters }` — call this after seeding a new protocol row
+- Needed because `ensureInitialized` only re-runs if `initialized === false`; successful startup leaves it `true` even with 0 adapters, so seeding protocols without a restart or refresh silently does nothing
+- `initialize()` resets `this.initialized = false` at the top — any mid-init failure leaves registry retryable
+
 ## Fast path vs slow path in adapters
 - Adapters first check `tx.rawData.event_name` (fast, no RPC call)
 - Fall back to fetching receipt from `tx.txHash` via viem if rawData not decoded
