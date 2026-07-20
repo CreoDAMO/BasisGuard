@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, rawTransactionsTable, chainsTable, protocolsTable } from "@workspace/db";
-import { requireAuth } from "../middlewares/auth.js";
+import { requireAuth, requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 import {
   createPositionFromClassification,
   type CreatePositionInput,

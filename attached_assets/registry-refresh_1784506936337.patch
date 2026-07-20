@@ -1,0 +1,42 @@
+diff --git a/artifacts/api-server/src/routes/transactions.ts b/artifacts/api-server/src/routes/transactions.ts
+index 3d49641..db4b388 100644
+--- a/artifacts/api-server/src/routes/transactions.ts
++++ b/artifacts/api-server/src/routes/transactions.ts
+@@ -1,7 +1,7 @@
+ import { Router, type IRouter } from "express";
+ import { eq, and, desc } from "drizzle-orm";
+ import { db, rawTransactionsTable, chainsTable, protocolsTable } from "@workspace/db";
+-import { requireAuth } from "../middlewares/auth.js";
++import { requireAuth, requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
+ import {
+   createPositionFromClassification,
+   type CreatePositionInput,
+@@ -225,6 +225,28 @@ router.post("/transactions/classify", requireAuth, async (req, res): Promise<voi
+   });
+ });
+ 
++/**
++ * POST /admin/registry/refresh
++ *
++ * Re-scans the chains and protocols tables and rebuilds the adapter map.
++ * Needed after seeding a new protocol row (e.g. aave_v3, uniswap_v3) — the
++ * registry only auto-initializes once, at server startup or on the first
++ * /transactions/classify call if that startup init failed, so a newly
++ * seeded protocol won't be picked up until this is called or the server
++ * restarts.
++ */
++router.post(
++  "/admin/registry/refresh",
++  requireRole(ADMIN_ROLES),
++  async (_req, res): Promise<void> => {
++    await registry.initialize();
++    res.json({
++      refreshed_at: new Date().toISOString(),
++      adapters: registry.adapterCount,
++    });
++  },
++);
++
+ function serialize(tx: typeof rawTransactionsTable.$inferSelect) {
+   return {
+     id: tx.id,

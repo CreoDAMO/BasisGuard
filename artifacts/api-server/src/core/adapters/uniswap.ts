@@ -6,7 +6,6 @@ import { BaseProtocolAdapter, type ParsedEvent } from "./base.js";
 // Fixed UUIDs from lib/db/src/seed-citations.ts — keep in sync with that file.
 const CITATIONS = {
   NOTICE_2014_21: "aa000001-0000-0000-0000-000000000006",
-  REV_RUL_2019_24: "aa000001-0000-0000-0000-000000000005",
   REV_PROC_2024_28: "aa000001-0000-0000-0000-000000000004",
   IRC_1001: "aa000001-0000-0000-0000-000000000009",
   COTTAGE_SAVINGS: "aa000001-0000-0000-0000-000000000003",

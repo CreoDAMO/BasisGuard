@@ -1,0 +1,21 @@
+Pulled and checked all six claims directly — five confirmed exactly, one genuinely better than described, and one real gap that matters for what you're about to do next.
+
+**`decodeLog` — confirmed, real implementation.** Both adapters use `decodeEventLog` with `strict: false`, try each ABI item, catch the mismatch and move to the next. Correct use of viem's actual API, not a mock.
+
+**Fast path — confirmed, and architected better than the claim implied.** It's not duplicated in both adapters — `extractRawEvent()` is a shared `protected` method on `BaseProtocolAdapter` that both inherit. One implementation, not two copies that could drift. Good call.
+
+**Uniswap adapter — confirmed precisely.** `Swap` event, `taxable_disposition` / `should` tier, and all four citation UUIDs resolve to real seeded rows (I checked each against `seed-citations.ts` directly — IRC §1001, Cottage Savings, Notice 2014-21, Rev. Proc. 2024-28, all real). Multi-hop works exactly as described — `parse()` iterates every log in the receipt, so N Swap logs produce N independent `ParsedEvent`s.
+
+**`POST /transactions/classify` — confirmed exactly**, including the response shape (`total_fetched`, `classified`, `skipped`, `errors`) and the limit clamp (`Math.min(Math.max(rawLimit, 1), 200)`).
+
+**Registry startup — confirmed**, fire-and-forget with adapter-count logging, and `parseTransaction` calls a private `ensureInitialized()` guard before every use.
+
+**That last one is exactly where the real gap is, and it affects your very next step.** `ensureInitialized()` only re-runs `initialize()` while `this.initialized` is still `false`. Startup already succeeds right now — with zero protocols seeded, but it still *succeeds*, so `initialized` flips to `true` immediately. That means once you seed `aave_v3`/`uniswap_v3` protocol rows, `/transactions/classify` will keep returning `adapters: 0` and skip everything, because nothing tells the registry to re-scan the `protocols` table — the lazy re-init only covers "startup failed outright" (DB unreachable), not "startup succeeded with a stale/empty adapter map." You'll need either a server restart after seeding, or (better) a small `POST /admin/registry/refresh` route that calls `registry.initialize()` on demand. Worth adding before you seed those protocols, or the first classify call after seeding will look like it silently did nothing.
+
+Two minor ones, not urgent: a multi-hop swap creates several Position Records but `raw_transactions.position_record_id` can only point to one FK, so it links to the first — every position is still correct and independently queryable, the raw row just undersells how many came from it. And `REV_RUL_2019_24` is defined in `uniswap.ts`'s citation map but never referenced in `classify()` — dead code, harmless.
+
+Want the registry-refresh route now, before you seed the protocols and hit it?
+
+Good — `registry` is already imported here. Adding the refresh route to the same file, gated the same way as the other admin operations:
+
+`POST /admin/registry/refresh` — admin-gated same as your other operational routes, calls `registry.initialize()` (already does a full re-scan, no new method needed), returns `{ refreshed_at, adapters }` so you get immediate confirmation the seed worked. Call it right after seeding `aave_v3`/`uniswap_v3` — should see `adapters: 2` instead of restarting the server.

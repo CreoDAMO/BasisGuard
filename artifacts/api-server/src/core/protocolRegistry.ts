@@ -20,6 +20,10 @@ export class ProtocolRegistry {
   private initialized = false;
 
   async initialize(): Promise<void> {
+    // Reset before the async work so that if we throw mid-way, ensureInitialized()
+    // will retry on the next call rather than serving a stale / partial adapter map.
+    this.initialized = false;
+
     const [allChains, allProtocols] = await Promise.all([
       db.select().from(chainsTable),
       db.select().from(protocolsTable),
