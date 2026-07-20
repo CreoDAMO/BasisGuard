@@ -2,6 +2,8 @@
 
 A crypto tax compliance evidence platform for licensed CPAs and authorized partners. Every DeFi transaction is classified into an immutable **Position Record** with a confidence tier drawn from Circular 230 / IRC §6694 preparer-penalty standards, a cited IRS authority, and a plain-language rationale. Nothing is classified without a cited reason.
 
+---
+
 ## Architecture
 
 pnpm monorepo — three artifacts, two shared libraries.
@@ -11,162 +13,367 @@ artifacts/
   api-server/       Express 5 REST API (port 8080)
   basisguard/       React + Vite frontend (port 18252)
 lib/
-  api-spec/         OpenAPI contract (source of truth for codegen)
-  db/               Drizzle schema + migrations
+  api-spec/         OpenAPI contract (source of truth for Orval codegen)
+  api-zod/          Generated Zod schemas (do not edit by hand)
+  api-client-react/ Generated TanStack Query hooks (do not edit by hand)
+  db/               Drizzle ORM schema + push config
 ```
+
+---
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 24, TypeScript 5.9 |
+| Runtime | Node.js 20, TypeScript 5.9 |
 | Frontend | React 18, Vite, Tailwind CSS v4, wouter, TanStack Query, Recharts |
 | API | Express 5 |
-| Auth | Clerk (`@clerk/express` 2.1.43, `@clerk/react` 6.12.5) — Replit-managed tenant |
-| Database | PostgreSQL + Drizzle ORM |
+| Auth | Clerk (`@clerk/express` + `@clerk/react`) — Replit-managed tenant |
+| Database | PostgreSQL 16 + Drizzle ORM |
 | Validation | Zod v4, drizzle-zod |
-| API codegen | Orval (generates typed hooks and Zod schemas from OpenAPI spec) |
+| API codegen | Orval (generates typed hooks + Zod schemas from `lib/api-spec/openapi.yaml`) |
+| EVM decoding | viem 2 (`decodeEventLog`, public client for receipt fetching) |
 | Build | esbuild |
+| Tests | Vitest 4 |
+
+---
 
 ## Database Schema
 
 | Table | Purpose |
 |---|---|
-| `users` | Clerk-linked user accounts; roles: `super_admin`, `reviewer`, `cpa_partner` |
-| `authority_citations` | Seeded IRS legal authorities (Rev. Rul., T.D., Notice, IRC §) |
+| `users` | Clerk-linked accounts; roles: `super_admin`, `reviewer`, `cpa_partner` |
+| `authority_citations` | 10 seeded IRS legal authorities (Rev. Rul., T.D., Notice, IRC §) |
 | `treatment_profiles` | Versioned rule sets for classification policy |
-| `position_records` | Append-only evidence log; superseding creates a new row via `superseded_by` |
+| `position_records` | Append-only evidence log; `superseded_by` FK for audit trail; `amount_usd` for P&L |
 | `position_citations` | Junction: which authorities back each position |
-| `raw_transactions` | Ingested transaction data; `processed` flag set when a position record is created |
-| `chains` | Supported blockchain networks |
-| `protocols` | DeFi protocols (linked to chains) |
-| `chain_submissions` | Community-submitted chain onboarding requests |
-| `protocol_submissions` | Community-submitted protocol onboarding requests |
+| `raw_transactions` | Ingested transaction data; `processed` + `position_record_id` set by adapters |
+| `chains` | Supported blockchain networks (slug, RPC URL, metadata) |
+| `protocols` | DeFi protocols (slug links to adapter class; FK to chain) |
+| `chain_submissions` | Community chain onboarding requests |
+| `protocol_submissions` | Community protocol onboarding requests |
+
+### Key columns added since initial import
+
+| Column | Table | Type | Purpose |
+|---|---|---|---|
+| `amount_usd` | `position_records` | `double precision` (nullable) | Realized gain/loss in USD; set by adapters; used by loss-harvesting scanner |
+
+---
 
 ## API Routes
 
 All routes except `GET /api/healthz` require a valid Clerk session.
 
-| Method | Path | Auth level |
+### Auth & User
+
+| Method | Path | Auth |
 |---|---|---|
 | GET | `/api/healthz` | Public |
-| GET / PATCH | `/api/me` | Any authenticated user |
-| GET | `/api/dashboard/summary` | Any authenticated user |
-| GET | `/api/dashboard/recent-activity` | Any authenticated user |
-| GET / POST | `/api/chains`, `/api/protocols` | Any authenticated user |
-| GET / POST / PATCH / DELETE | `/api/citations` | Any authenticated user |
-| GET / POST / PATCH | `/api/positions` | Any authenticated user |
-| GET | `/api/positions/review-queue` | Any authenticated user |
-| POST | `/api/positions/tier-suggestion` | Any authenticated user |
-| GET | `/api/positions/:id` | Any authenticated user |
+| GET / PATCH | `/api/me` | Any authenticated |
+
+### Dashboard & Intelligence
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/dashboard/summary` | Any authenticated |
+| GET | `/api/dashboard/recent-activity` | Any authenticated |
+| GET | `/api/intelligence/suggest` | Any authenticated |
+| GET | `/api/intelligence/stale` | Any authenticated |
+
+### Positions (Evidence Log)
+
+| Method | Path | Auth |
+|---|---|---|
+| GET / POST | `/api/positions` | Any authenticated |
+| GET | `/api/positions/review-queue` | Any authenticated |
+| GET | `/api/positions/harvest-candidates` | Any authenticated |
+| GET | `/api/positions/tier-suggestion` | Any authenticated |
+| GET / PATCH | `/api/positions/:id` | Any authenticated |
 | POST | `/api/positions/:id/signoff` | `super_admin` or `reviewer` |
+| POST | `/api/positions/:id/supersede` | Any authenticated |
+| GET | `/api/positions/:id/history` | Any authenticated |
 | POST | `/api/positions/batch-signoff` | `super_admin` or `reviewer` |
-| GET / POST / PATCH | `/api/profiles`, `/api/profiles/:id` | Any authenticated user |
-| GET | `/api/profiles/:id/delta` | Any authenticated user |
-| GET | `/api/intelligence/suggest` | Any authenticated user |
-| GET | `/api/intelligence/stale` | Any authenticated user |
-| GET | `/api/export/audit-package` | Any authenticated user |
-| GET | `/api/export/pattern-report` | Any authenticated user |
-| GET | `/api/export/comment-letter` | Any authenticated user |
-| GET | `/api/export/cpa-handoff` | Any authenticated user |
-| GET / POST | `/api/transactions` | Any authenticated user |
-| POST | `/api/transactions/ingest` | Any authenticated user |
-| POST | `/api/submit/chain`, `/api/submit/protocol` | Any authenticated user |
+
+### Transactions & Classification
+
+| Method | Path | Auth |
+|---|---|---|
+| GET / POST | `/api/transactions` | Any authenticated |
+| POST | `/api/transactions/ingest` | Any authenticated |
+| POST | `/api/transactions/classify` | Any authenticated |
+
+### Export
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/export/audit-package` | Any authenticated | Full evidence log for a tax year |
+| GET | `/api/export/pattern-report` | Any authenticated | Aggregate event-type / tier distribution |
+| GET | `/api/export/comment-letter` | Any authenticated | Anonymized open-gap data for IRS rulemaking comments |
+| GET | `/api/export/cpa-handoff` | Any authenticated | Summary + preparer checklist for signing CPA |
+| GET | `/api/export/dossier` | Any authenticated | All four above combined in one parallel-fetched envelope |
+
+### Library
+
+| Method | Path | Auth |
+|---|---|---|
+| GET / POST / PATCH / DELETE | `/api/citations` | Any authenticated |
+| GET / POST / PATCH | `/api/profiles`, `/api/profiles/:id` | Any authenticated |
+| GET | `/api/profiles/:id/delta` | Any authenticated |
+
+### Chains & Protocols
+
+| Method | Path | Auth |
+|---|---|---|
+| GET / POST | `/api/chains`, `/api/protocols` | Any authenticated |
+| POST | `/api/submit/chain`, `/api/submit/protocol` | Any authenticated |
+
+### Admin
+
+| Method | Path | Auth |
+|---|---|---|
 | GET | `/api/admin/submissions` | `super_admin` or `reviewer` |
 | PATCH | `/api/admin/submissions/chain/:id/approve` | `super_admin` or `reviewer` |
 | PATCH | `/api/admin/submissions/chain/:id/reject` | `super_admin` or `reviewer` |
 | PATCH | `/api/admin/submissions/protocol/:id/approve` | `super_admin` or `reviewer` |
 | PATCH | `/api/admin/submissions/protocol/:id/reject` | `super_admin` or `reviewer` |
+| POST | `/api/admin/registry/refresh` | `super_admin` or `reviewer` |
+
+---
 
 ## Frontend Pages
 
 | Page | Route | Description |
 |---|---|---|
 | Landing | `/` | Public; sign in / request access |
-| Sign in | `/sign-in` | Clerk-hosted sign-in |
-| Sign up | `/sign-up` | Clerk-hosted sign-up |
+| Sign in / up | `/sign-in`, `/sign-up` | Clerk-hosted flows |
 | Command Center | `/dashboard` | Tier breakdown chart, pending count, recent activity |
 | Evidence Log | `/positions` | Filterable table of all position records |
-| Position Detail | `/positions/:id` | Rationale, citations, tier, reviewer sign-off action |
-| Review Queue | `/review-queue` | Pre-filtered pending positions for CPA workflow |
+| Position Detail | `/positions/:id` | Rationale, citations, tier, reviewer sign-off |
+| Review Queue | `/review-queue` | Pre-filtered pending positions; batch sign-off modal |
 | Citations | `/citations` | Searchable IRS authority citations |
 | Profiles | `/profiles` | Versioned treatment rule sets + delta report |
+| Audit Export | `/export` | IRS-Ready Dossier, audit package, pattern report, CPA handoff |
+| Harvest Scanner | `/harvest` | Loss harvesting candidates + wash-sale risk flags (30-day window) |
 | Chain Registry | `/chains` | Supported blockchains and community submissions |
-| Onboarding | `/submissions` | Admin review of chain/protocol onboarding requests |
-| Audit Export | `/export` | Tax-year evidence package, pattern report, CPA handoff |
+| Onboarding | `/submissions` | Admin review of chain/protocol submissions |
 | Ingest | `/transactions` | Raw transaction ingestion |
+
+---
+
+## Protocol Adapter Layer
+
+Automatic classification of on-chain DeFi events into Position Records, without manual entry.
+
+### Architecture
+
+```
+core/
+  reviewRules.ts         OPEN_GAP_EVENT_TYPES, computeRequiresReview, isStale — no DB deps
+  washSaleDetector.ts    Pure wash-sale detection functions — no DB deps
+  createPosition.ts      Shared insert path used by both ingest route and all adapters
+  protocolRegistry.ts    Singleton registry; keyed by protocol UUID
+  adapters/
+    base.ts              BaseProtocolAdapter abstract class + ParsedEvent interface
+    aave.ts              Aave V3 (Supply, Borrow, Repay, Withdraw, LiquidationCall)
+    uniswap.ts           Uniswap V3 (Swap → taxable_disposition, multi-hop aware)
+```
+
+### How Classification Works
+
+1. Raw transactions are ingested via `POST /api/transactions/ingest` into `raw_transactions` with `processed=false`.
+2. `POST /api/transactions/classify` walks unprocessed rows, looks up each row's `protocol_id` in the registry, runs the adapter's `parse()` method, and creates Position Records via `createPosition.ts`.
+3. Each adapter tries a **fast path** first — if `rawData` contains `{ event_name, args }` (pre-decoded by an indexer), it skips the RPC call. Otherwise it fetches the receipt via viem and decodes logs against the protocol ABI.
+
+### Activating Adapters
+
+The registry initializes at server startup and lazily re-initializes on the first classify call. Adapters are 0 until protocol rows exist in the DB:
+
+```sql
+-- Example: seed Aave V3 on Ethereum mainnet
+INSERT INTO protocols (id, chain_id, name, slug, ...)
+VALUES (gen_random_uuid(), '<ethereum-chain-id>', 'Aave V3', 'aave_v3', ...);
+```
+
+After seeding, call `POST /api/admin/registry/refresh` — returns `{ adapters: N }` confirming pickup without a server restart.
+
+### Authority Citations Seeded
+
+| UUID suffix | Authority |
+|---|---|
+| `…000001` | Notice 2014-21 (crypto as property) |
+| `…000002` | Rev. Rul. 2023-14 (staking rewards) |
+| `…000003` | Cottage Savings Ass'n, 499 U.S. 554 (realization doctrine) |
+| `…000004` | Rev. Proc. 2024-28 (basis allocation) |
+| `…000005` | Rev. Rul. 2019-24 (hard forks) |
+| `…000006` | Notice 2024-57 (open-gap DeFi categories) |
+| `…000007` | T.D. 10000 (broker 1099-DA) |
+| `…000008` | Notice 2023-27 (NFT look-through) |
+| `…000009` | IRC §1001 (realization, gain/loss on disposition) |
+| `…000010` | IRC §165 (loss deductions) |
+
+---
+
+## Loss Harvesting Scanner
+
+`GET /api/positions/harvest-candidates?tax_year=2024&wallet_id=optional`
+
+Returns all `taxable_disposition` positions for the tax year, sorted by `amount_usd` ascending (largest losses first; null last), each annotated with:
+
+- `wash_sale_risk` — true if another position of the same event type + wallet falls within 30 days
+- `wash_sale_pairs` — array of `{ loss_position_id, gain_position_id, days_between }`
+
+**Note on IRC §1091:** Wash-sale rules apply to stocks and securities. The IRS has not extended them to cryptocurrency. The scanner's flags are conservative practitioner markers — not legal determinations. A disclaimer is embedded in every response.
+
+`amount_usd` is null for positions created before the column was added, or when the adapter/ingest route did not have price data. Populate it via the ingest API to enable dollar-level analysis.
+
+---
+
+## IRS-Ready Dossier
+
+`GET /api/export/dossier?tax_year=2024&redact_pii=false`
+
+Runs all four export builders in parallel (`Promise.all`) and returns a single JSON envelope:
+
+```json
+{
+  "generated_at": "...",
+  "dossier_version": "1.0",
+  "tax_year": 2024,
+  "disclaimer": "...",
+  "audit_package": { ... },
+  "pattern_report": { ... },
+  "comment_letter": { ... },
+  "cpa_handoff": { ... }
+}
+```
+
+Total latency is bounded by the slowest individual query. Downloads as `basisguard_irs_dossier_2024.json`.
+
+---
+
+## Testing
+
+```bash
+pnpm --filter @workspace/api-server run test           # run all tests
+pnpm --filter @workspace/api-server run test:watch     # watch mode
+pnpm --filter @workspace/api-server run test:coverage  # coverage report
+```
+
+38 tests across 3 files:
+
+| File | What it covers |
+|---|---|
+| `src/test/reviewRules.test.ts` | `OPEN_GAP_EVENT_TYPES` membership, `computeRequiresReview` all rule branches, `isStale` boundary conditions |
+| `src/test/washSale.test.ts` | `detectWashSalePairs` (window boundaries, null wallet/date, gain+gain no-pair), `buildHarvestCandidates` sort order and pair annotation |
+| `src/test/registry.test.ts` | `ProtocolRegistry` init with empty tables, `initialized` flag reset on mid-init failure, `parseTransaction` returns `[]` for null/unknown protocol |
+
+Pure functions (no DB dependencies) live in `core/reviewRules.ts` and `core/washSaleDetector.ts` — testable without mocking.
+
+---
 
 ## Key Design Decisions
 
-**Position Records are append-only.** Superseding a position creates a new record with a `superseded_by` FK — the original is never mutated. This gives a full audit trail.
+**Position Records are append-only.** Superseding creates a new record with `superseded_by` pointing at the old one. The original is never mutated — complete audit trail always intact.
 
-**Confidence tiers map exactly to preparer standards.**
+**Confidence tiers map exactly to IRC §6694 preparer standards.**
 - `will` — near certainty
 - `should` — substantial likelihood
 - `more_likely_than_not` — >50%
-- `substantial_authority` — meaningful legal support
-- `reasonable_basis` — colorable argument, lowest defensible tier
+- `substantial_authority` — meaningful legal support, meaningful weight of authority
+- `reasonable_basis` — colorable argument; lowest defensible tier; requires Form 8275 disclosure
 
-**`requires_review` is always computed, never stored.**
-`requires_review=true` if: the event type is an open-gap category (bridge transfers, cross-chain ops, etc.) OR the position has zero authority citations. Enforced in both the positions route and the ingest endpoint via `OPEN_GAP_EVENT_TYPES` (single source of truth in `positions.ts`).
+**`requires_review` is always computed, never stored as mutable state.** Rules live in `core/reviewRules.ts` (no DB deps, fully tested):
+1. Open-gap event type → always true (non-overridable)
+2. No citations linked → true
+3. Otherwise → honour caller value, default false
 
-**`is_stale` is computed at serialization time.** A position is stale if `tier=reasonable_basis`, it has no superseding record, and it was created more than 180 days ago. Never stored.
+**`is_stale` is computed at serialization time.** Stale = `tier=reasonable_basis` + no superseding record + created more than 180 days ago. Never stored.
 
-**Auth is cookie-based.** The Clerk session cookie is the credential; no Bearer tokens are sent from the frontend. The API is configured with `credentials: true` CORS.
+**Two categories of open-gap events, deliberately kept separate.**
+- *IRS-guidance-gap* (lp_deposit, lp_withdrawal, defi_yield, bridge_transfer, staking_reward, nft_sale) — forced review AND surfaced in `/export/comment-letter` as evidence for IRS rulemaking.
+- *Fact-pattern-gap* (aave_withdraw, aave_liquidation) — forced review because lot-matching is needed, not because guidance is pending. These do NOT appear in the comment-letter export, which is specifically for regulatory gaps.
 
-**User JIT-provisioning.** On first authenticated request, `requireAuth` inserts a `users` row with role `cpa_partner` if one doesn't exist. To promote a user: `UPDATE users SET role = 'super_admin' WHERE email = '...'`.
+**Registry `initialize()` resets `initialized=false` before the async DB calls.** Any mid-init failure leaves the registry in a retryable state. `ensureInitialized()` uses the flag for the lazy-init guard; `initialize()` itself is called directly by the refresh route and bypasses the guard.
+
+**Auth is cookie-based.** Clerk session cookie is the credential; no Bearer tokens from the frontend. CORS is `credentials: true, origin: true`.
+
+**User JIT-provisioning.** On first authenticated request, `requireAuth` inserts a `users` row with role `cpa_partner` if one doesn't exist. To promote: `UPDATE users SET role = 'super_admin' WHERE email = '...'`.
+
+---
 
 ## Common Commands
 
 ```bash
-# Start everything
-pnpm --filter @workspace/api-server run dev   # API on :8080
+# Development
+pnpm --filter @workspace/api-server run dev   # API on :8080 (build + start)
 pnpm --filter @workspace/basisguard run dev   # Frontend on :18252
 
-# Schema changes
-pnpm --filter @workspace/db run push          # Push to dev DB
-pnpm --filter @workspace/db run push-force    # Force push (drops conflicting state)
+# Tests
+pnpm --filter @workspace/api-server run test
 
-# Codegen (run after changing openapi.yaml)
+# Schema
+pnpm --filter @workspace/db run push          # Push schema changes to dev DB
+
+# Codegen (run after editing lib/api-spec/openapi.yaml)
 pnpm --filter @workspace/api-spec run codegen
 
-# Types
+# Type check
 pnpm run typecheck
+
+# Seed authority citations (idempotent — ON CONFLICT DO NOTHING)
+psql $DATABASE_URL -f scripts/seed-citations.sql
 ```
+
+---
 
 ## Required Environment Variables
 
-| Variable | Purpose |
+| Variable | How it gets set |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string — **runtime-managed by Replit, do not set manually** |
-| `CLERK_SECRET_KEY` | Clerk backend key — **auto-provisioned via Replit Auth pane** |
-| `CLERK_PUBLISHABLE_KEY` | Clerk publishable key — **auto-provisioned via Replit Auth pane** |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Same key, exposed to Vite frontend — **auto-provisioned** |
-| `SESSION_SECRET` | Express session signing — set as a Replit Secret |
+| `DATABASE_URL` | Runtime-managed by Replit — do not set manually |
+| `CLERK_SECRET_KEY` | Auto-provisioned by Replit Auth pane |
+| `CLERK_PUBLISHABLE_KEY` | Auto-provisioned by Replit Auth pane |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Auto-provisioned by Replit Auth pane |
+| `SESSION_SECRET` | Set manually as a Replit Secret (any long random string) |
+
+---
 
 ## Replit First-Time Setup
 
-When importing this project fresh on Replit:
+1. **Clerk** is provisioned automatically by the Replit Auth pane — no manual key entry.
+2. **Schema** is pushed automatically by `scripts/post-merge.sh` (runs on task-agent merges). Manual: `pnpm --filter @workspace/db run push`.
+3. **Citations** are seeded by the post-merge hook. Manual: `psql $DATABASE_URL -f scripts/seed-citations.sql`.
+4. **SESSION_SECRET** must be added as a Replit Secret.
 
-1. **Clerk auth** is provisioned automatically by the Replit Auth pane — no manual key entry needed.
-2. **Database schema** is pushed automatically by the post-merge hook (`scripts/post-merge.sh`), which runs `pnpm --filter @workspace/db run push`.
-3. **Seed authority citations** — the post-merge hook also runs `psql $DATABASE_URL -f scripts/seed-citations.sql`. To seed manually: `psql $DATABASE_URL -f scripts/seed-citations.sql`.
-4. **`SESSION_SECRET`** must be added as a Replit Secret (any long random string).
+> **Note:** `pnpm --filter @workspace/db run seed` requires Node 24 (`--experimental-strip-types`). The Replit environment runs Node 20 — use the SQL file above instead.
 
-> **Note on the `pnpm --filter @workspace/db run seed` script:** this script uses `--experimental-strip-types`, which requires Node 24. The Replit environment runs Node 20, so use the SQL file above instead.
+---
 
 ## Known Gotchas
 
 - `timestamptz` is not exported from `drizzle-orm/pg-core` — use `timestamp("col", { withTimezone: true })` instead.
-- Google Fonts `@import url(...)` must come **before** `@import 'tailwindcss'` in `index.css` or PostCSS errors.
-- Express route ordering matters: `/positions/review-queue`, `/positions/batch-signoff`, `/positions/tier-suggestion` must be declared before `/:id` in the same router.
+- Google Fonts `@import url(...)` must come **before** `@import 'tailwindcss'` in `index.css`, or PostCSS errors.
+- Static Express routes (`/positions/review-queue`, `/positions/harvest-candidates`, etc.) must be declared **before** parameterized routes (`/positions/:id`) in the same router.
 - DB seeding uses `psql` direct SQL — Node `--experimental-strip-types` cannot resolve extensionless ESM imports from workspace packages.
-- `VITE_CLERK_PROXY_URL` is intentionally empty in development. Do not gate it on `NODE_ENV`.
+- Orval generates `api.ts` (Zod) and `types/` (TS) from the same OpenAPI spec. Inline anonymous request bodies generate the same name in both — fix by extracting to named `$ref` schemas in the spec.
+- `VITE_CLERK_PROXY_URL` is intentionally empty in development. Do not gate on `NODE_ENV`.
 - Tailwind v4 requires `tailwindcss({ optimize: false })` in `vite.config.ts` when Clerk is present, and `@layer theme, base, clerk, components, utilities;` before `@import 'tailwindcss'` in `index.css`.
+
+---
 
 ## What Is Not Yet Built
 
-The **Protocol Adapter / ProtocolRegistry engine** (Layer 2 from the design doc) — chain-aware DeFi protocol adapters (Uniswap, Aave, bridge protocols) that classify raw transactions automatically. The `raw_transactions` table and `/transactions/ingest` endpoint are the ingestion layer that adapters will feed into. The `processed` flag and `position_record_id` FK columns exist to track adapter processing.
+| Feature | Blocker |
+|---|---|
+| **Protocols seeded in DB** | No `aave_v3` / `uniswap_v3` rows exist yet — adapters register but classify nothing until a protocol row with the matching slug is inserted and `POST /admin/registry/refresh` is called |
+| **Uniswap V3 LP adapters** (Mint, Burn, Collect) | LP deposit/withdrawal treatment is Notice 2024-57 open-gap — adapter is intentionally deferred until guidance issues |
+| **Bridge / staking adapters** | Pending IRS guidance; Notice 2024-57 categories |
+| **`amount_usd` backfill** | Positions created before the column existed have `amount_usd=null`; harvest scanner shows them but cannot sort by dollar value |
+| **Basis step-up simulator** | Requires FMV at date-of-death — needs an external price oracle (Coingecko, Coinmarketcap, or on-chain TWAP) |
+| **Charitable donation FMV calculator** | Same FMV oracle requirement |
+
+---
 
 ## User Preferences
 
