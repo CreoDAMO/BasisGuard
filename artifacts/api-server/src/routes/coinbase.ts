@@ -10,7 +10,7 @@ const router: IRouter = Router();
 const COINBASE_CHAIN_UUID = "00000000-0000-0000-0000-c01bba5e0000";
 
 // ── GET /coinbase/connection ──────────────────────────────────────────────────
-// Returns connection status without exposing the private key.
+// Returns connection status without exposing the API secret.
 
 router.get("/coinbase/connection", async (req, res): Promise<void> => {
   const user = req.user!;
@@ -29,7 +29,7 @@ router.get("/coinbase/connection", async (req, res): Promise<void> => {
   const conn = rows[0];
   res.json({
     connected: true,
-    key_name: maskKeyName(conn.keyName),
+    api_key: maskApiKey(conn.apiKey),
     last_synced_at: conn.lastSyncedAt?.toISOString() ?? null,
     tx_count: conn.txCount,
     status: conn.status,
@@ -38,55 +38,47 @@ router.get("/coinbase/connection", async (req, res): Promise<void> => {
 });
 
 // ── POST /coinbase/connection ─────────────────────────────────────────────────
-// Save (or replace) CDP API credentials for the current user.
+// Save (or replace) legacy API credentials for the current user.
 
 router.post("/coinbase/connection", async (req, res): Promise<void> => {
   const user = req.user!;
-  const { key_name, private_key } = req.body as {
-    key_name?: string;
-    private_key?: string;
+  const { api_key, api_secret } = req.body as {
+    api_key?: string;
+    api_secret?: string;
   };
 
-  if (!key_name || !private_key) {
-    res.status(400).json({ error: "key_name and private_key are required" });
+  if (!api_key || !api_secret) {
+    res.status(400).json({ error: "api_key and api_secret are required" });
     return;
   }
 
-  // Validate that the private key looks like a PEM EC key
-  if (!private_key.includes("BEGIN EC PRIVATE KEY") && !private_key.includes("BEGIN PRIVATE KEY")) {
-    res.status(400).json({
-      error: "private_key must be a PEM-encoded EC private key (BEGIN EC PRIVATE KEY or BEGIN PRIVATE KEY)",
-    });
-    return;
-  }
-
-  const { encrypted, iv, authTag } = encrypt(private_key.trim());
+  const { encrypted, iv, authTag } = encrypt(api_secret.trim());
 
   // Upsert — replace any existing connection for this user
   await db
     .insert(coinbaseConnectionsTable)
     .values({
       userId: user.id,
-      keyName: key_name.trim(),
-      encryptedKey: encrypted,
-      keyIv: iv,
-      keyAuthTag: authTag,
+      apiKey: api_key.trim(),
+      encryptedSecret: encrypted,
+      secretIv: iv,
+      secretAuthTag: authTag,
       status: "active",
     })
     .onConflictDoUpdate({
       target: coinbaseConnectionsTable.userId,
       set: {
-        keyName: key_name.trim(),
-        encryptedKey: encrypted,
-        keyIv: iv,
-        keyAuthTag: authTag,
+        apiKey: api_key.trim(),
+        encryptedSecret: encrypted,
+        secretIv: iv,
+        secretAuthTag: authTag,
         status: "active",
         errorMessage: null,
         updatedAt: new Date(),
       },
     });
 
-  res.json({ connected: true, key_name: maskKeyName(key_name.trim()) });
+  res.json({ connected: true, api_key: maskApiKey(api_key.trim()) });
 });
 
 // ── DELETE /coinbase/connection ───────────────────────────────────────────────
@@ -119,9 +111,9 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
   }
 
   const conn = rows[0];
-  let privateKey: string;
+  let apiSecret: string;
   try {
-    privateKey = decrypt(conn.encryptedKey, conn.keyIv, conn.keyAuthTag);
+    apiSecret = decrypt(conn.encryptedSecret, conn.secretIv, conn.secretAuthTag);
   } catch {
     res.status(500).json({ error: "Failed to decrypt stored credentials" });
     return;
@@ -144,7 +136,7 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
   const errors: Array<{ account: string; error: string }> = [];
 
   try {
-    const accounts = await listAccounts(conn.keyName, privateKey);
+    const accounts = await listAccounts(conn.apiKey, apiSecret);
 
     // Filter to crypto accounts only (exclude fiat/vault)
     const cryptoAccounts = accounts.filter(
@@ -153,24 +145,25 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
 
     for (const account of cryptoAccounts) {
       try {
-        const txs = await listTransactions(conn.keyName, privateKey, account.id);
+        const txs = await listTransactions(conn.apiKey, apiSecret, account.id);
 
         // Collect tx IDs already ingested for this account to avoid duplicates
         const incomingHashes = txs
           .map((t) => t.network?.hash ?? t.id)
           .filter(Boolean) as string[];
 
-        const existing = incomingHashes.length > 0
-          ? await db
-              .select({ txHash: rawTransactionsTable.txHash })
-              .from(rawTransactionsTable)
-              .where(
-                and(
-                  eq(rawTransactionsTable.chainId, COINBASE_CHAIN_UUID),
-                  inArray(rawTransactionsTable.txHash, incomingHashes),
-                ),
-              )
-          : [];
+        const existing =
+          incomingHashes.length > 0
+            ? await db
+                .select({ txHash: rawTransactionsTable.txHash })
+                .from(rawTransactionsTable)
+                .where(
+                  and(
+                    eq(rawTransactionsTable.chainId, COINBASE_CHAIN_UUID),
+                    inArray(rawTransactionsTable.txHash, incomingHashes),
+                  ),
+                )
+            : [];
 
         const existingHashes = new Set(existing.map((r) => r.txHash));
 
@@ -241,12 +234,9 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function maskKeyName(keyName: string): string {
-  // organizations/xxx/apiKeys/yyy → show last segment, mask the rest
-  const parts = keyName.split("/");
-  const last = parts[parts.length - 1];
-  if (last.length <= 8) return `****${last}`;
-  return `****${last.slice(-8)}`;
+function maskApiKey(apiKey: string): string {
+  if (apiKey.length <= 8) return "****" + apiKey.slice(-4);
+  return apiKey.slice(0, 4) + "****" + apiKey.slice(-4);
 }
 
 export default router;

@@ -21,7 +21,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 interface ConnectionStatus {
   connected: boolean;
-  key_name?: string;
+  api_key?: string;
   last_synced_at?: string | null;
   tx_count?: number;
   status?: string;
@@ -44,8 +44,8 @@ export default function ConnectionsPage() {
     queryFn: () => apiFetch("/api/coinbase/connection"),
   });
 
-  const [keyName, setKeyName] = useState("");
-  const [privateKey, setPrivateKey] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [apiSecret, setApiSecret] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
@@ -53,12 +53,12 @@ export default function ConnectionsPage() {
     mutationFn: () =>
       apiFetch("/api/coinbase/connection", {
         method: "POST",
-        body: JSON.stringify({ key_name: keyName, private_key: privateKey }),
+        body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret }),
       }),
     onSuccess: () => {
       setSaveError(null);
-      setKeyName("");
-      setPrivateKey("");
+      setApiKey("");
+      setApiSecret("");
       qc.invalidateQueries({ queryKey: ["coinbase-connection"] });
     },
     onError: (e: Error) => setSaveError(e.message),
@@ -104,7 +104,7 @@ export default function ConnectionsPage() {
             <div>
               <div className="font-medium text-foreground text-sm">Coinbase</div>
               <div className="text-xs text-muted-foreground font-mono">
-                Advanced Trade · V2 Accounts · Staking
+                V2 API · Accounts · Staking
               </div>
             </div>
           </div>
@@ -129,10 +129,10 @@ export default function ConnectionsPage() {
             />
           ) : (
             <ConnectForm
-              keyName={keyName}
-              privateKey={privateKey}
-              onKeyNameChange={setKeyName}
-              onPrivateKeyChange={setPrivateKey}
+              apiKey={apiKey}
+              apiSecret={apiSecret}
+              onApiKeyChange={setApiKey}
+              onApiSecretChange={setApiSecret}
               onSave={() => saveMutation.mutate()}
               saving={saveMutation.isPending}
               error={saveError}
@@ -151,13 +151,13 @@ export default function ConnectionsPage() {
           <li>All open-gap events are flagged for review automatically</li>
         </ul>
         <a
-          href="https://docs.cdp.coinbase.com/coinbase-app/docs/api-key-authentication"
+          href="https://www.coinbase.com/settings/api"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-foreground hover:underline mt-2"
         >
           <ExternalLink className="h-3 w-3" />
-          How to create a CDP API key
+          Manage your Coinbase API keys
         </a>
       </div>
     </div>
@@ -209,7 +209,7 @@ function ConnectedView({
     <div className="space-y-4">
       {/* Key info */}
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <InfoRow label="Key name" value={conn.key_name ?? "—"} />
+        <InfoRow label="API Key" value={conn.api_key ?? "—"} />
         <InfoRow
           label="Last synced"
           value={
@@ -281,18 +281,18 @@ function ConnectedView({
 }
 
 function ConnectForm({
-  keyName,
-  privateKey,
-  onKeyNameChange,
-  onPrivateKeyChange,
+  apiKey,
+  apiSecret,
+  onApiKeyChange,
+  onApiSecretChange,
   onSave,
   saving,
   error,
 }: {
-  keyName: string;
-  privateKey: string;
-  onKeyNameChange: (v: string) => void;
-  onPrivateKeyChange: (v: string) => void;
+  apiKey: string;
+  apiSecret: string;
+  onApiKeyChange: (v: string) => void;
+  onApiSecretChange: (v: string) => void;
   onSave: () => void;
   saving: boolean;
   error: string | null;
@@ -300,34 +300,34 @@ function ConnectForm({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Enter your Coinbase CDP API key credentials to import transaction history. The private key
-        is encrypted at rest and never exposed after saving.
+        Enter your Coinbase API Key and Secret to import transaction history. The secret is
+        encrypted at rest and never exposed after saving.
       </p>
 
       <div className="space-y-3">
         <div className="space-y-1.5">
           <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            Key Name
+            API Key
           </label>
           <input
             type="text"
-            value={keyName}
-            onChange={(e) => onKeyNameChange(e.target.value)}
-            placeholder="organizations/xxx/apiKeys/yyy"
+            value={apiKey}
+            onChange={(e) => onApiKeyChange(e.target.value)}
+            placeholder="Your Coinbase API key"
             className="w-full bg-input border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono"
           />
         </div>
 
         <div className="space-y-1.5">
           <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            Private Key (PEM)
+            API Secret
           </label>
-          <textarea
-            value={privateKey}
-            onChange={(e) => onPrivateKeyChange(e.target.value)}
-            placeholder={"-----BEGIN EC PRIVATE KEY-----\n…\n-----END EC PRIVATE KEY-----"}
-            rows={6}
-            className="w-full bg-input border border-border rounded-sm px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono resize-none"
+          <input
+            type="password"
+            value={apiSecret}
+            onChange={(e) => onApiSecretChange(e.target.value)}
+            placeholder="Your Coinbase API secret"
+            className="w-full bg-input border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono"
           />
         </div>
       </div>
@@ -342,7 +342,7 @@ function ConnectForm({
       <button
         type="button"
         onClick={onSave}
-        disabled={saving || !keyName.trim() || !privateKey.trim()}
+        disabled={saving || !apiKey.trim() || !apiSecret.trim()}
         className="flex items-center gap-2 px-4 py-2 bg-foreground text-background text-xs font-medium rounded-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         <Link2 className="h-3.5 w-3.5" />

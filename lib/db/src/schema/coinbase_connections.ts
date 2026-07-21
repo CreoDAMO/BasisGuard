@@ -2,9 +2,9 @@ import { pgTable, text, uuid, timestamp, integer } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 /**
- * Stores an encrypted Coinbase CDP API key per user.
+ * Stores an encrypted Coinbase legacy API key + secret per user.
  * One connection per user (unique on user_id).
- * Private key is encrypted at rest using AES-256-GCM.
+ * API secret is encrypted at rest using AES-256-GCM.
  */
 export const coinbaseConnectionsTable = pgTable("coinbase_connections", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -12,10 +12,10 @@ export const coinbaseConnectionsTable = pgTable("coinbase_connections", {
     .notNull()
     .unique()
     .references(() => usersTable.id, { onDelete: "cascade" }),
-  keyName: text("key_name").notNull(),
-  encryptedKey: text("encrypted_key").notNull(),
-  keyIv: text("key_iv").notNull(),
-  keyAuthTag: text("key_auth_tag").notNull(),
+  apiKey: text("api_key").notNull(),
+  encryptedSecret: text("encrypted_secret").notNull(),
+  secretIv: text("secret_iv").notNull(),
+  secretAuthTag: text("secret_auth_tag").notNull(),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
   txCount: integer("tx_count").notNull().default(0),
   status: text("status").notNull().default("active"), // active | error
