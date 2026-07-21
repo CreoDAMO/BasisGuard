@@ -154,6 +154,39 @@ The following event types have no direct IRS guidance and always require prepare
 
 ---
 
+## Connections & Data Import
+
+BasisGuard can pull transaction history directly from exchanges, eliminating manual CSV uploads and reducing transcription risk.
+
+### Coinbase (Legacy API)
+
+The **Connections** page (sidebar → Operations → Connections) lets you link a Coinbase account using a standard API Key + Secret generated at [coinbase.com/settings/api](https://www.coinbase.com/settings/api).
+
+**What gets imported on each sync:**
+
+| Coinbase type | BasisGuard event type | Notes |
+|---|---|---|
+| `buy` / `receive` | `taxable_acquisition` | Cost basis locked at settlement |
+| `sell` / `send` | `taxable_disposition` | Realizes gain/loss |
+| `trade` | `crypto_swap` | Exchange between two assets |
+| `staking_transfer` / `earn_payout` / `inflation_reward` | `staking_reward` | Ordinary income on receipt — Rev. Rul. 2023-14 |
+| `wrap_asset` / `unwrap_asset` | `bridge_transfer` | Open-gap; flagged for preparer review |
+| `exchange_deposit` / `exchange_withdrawal` | `non_taxable_transfer` | CEX-internal moves with no realization |
+| `fiat_deposit` / `fiat_withdrawal` | `fiat_deposit` / `fiat_withdrawal` | Non-taxable cash flows |
+| All other types | `coinbase_<type>` | Lands in review queue automatically |
+
+**How it works:**
+
+- All accounts (crypto wallets) are fetched and paginated in a single sync
+- Transactions are deduplicated by `tx_hash` — syncing twice never creates duplicates
+- Staking rewards and open-gap events (`wrap_asset`, unknown types) are automatically flagged `requires_review = true` and appear in the Review Queue
+- CEX transactions are stored under a virtual **Coinbase CEX** chain (no on-chain address required)
+- The API Secret is encrypted at rest using AES-256-GCM derived from the server session secret — it is never exposed after saving
+
+**Credentials:** API Key and Secret can be set as Replit Secrets (`COINBASE_API_KEY`, `COINBASE_API_SECRET`) for server-wide use, or entered per-user through the Connections UI (stored encrypted in the database).
+
+---
+
 ## Technical Stack
 
 - **Frontend**: React + Vite, Tailwind CSS, TanStack Query, wouter, Recharts
