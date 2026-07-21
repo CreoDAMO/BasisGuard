@@ -11,6 +11,7 @@ const COINBASE_CHAIN_UUID = "00000000-0000-0000-0000-c01bba5e0000";
 
 // ── GET /coinbase/connection ──────────────────────────────────────────────────
 // Returns connection status without exposing the API secret.
+// Falls back to COINBASE_API_KEY / COINBASE_API_SECRET env vars if no DB row.
 
 router.get("/coinbase/connection", async (req, res): Promise<void> => {
   const user = req.user!;
@@ -22,6 +23,20 @@ router.get("/coinbase/connection", async (req, res): Promise<void> => {
     .limit(1);
 
   if (rows.length === 0) {
+    // Fall back to env-var credentials if present
+    const envKey = process.env.COINBASE_API_KEY;
+    if (envKey) {
+      res.json({
+        connected: true,
+        api_key: maskApiKey(envKey),
+        last_synced_at: null,
+        tx_count: 0,
+        status: "active",
+        error_message: null,
+        via_env: true,
+      });
+      return;
+    }
     res.json({ connected: false });
     return;
   }
@@ -105,18 +120,27 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
     .where(eq(coinbaseConnectionsTable.userId, user.id))
     .limit(1);
 
-  if (rows.length === 0) {
-    res.status(400).json({ error: "No Coinbase connection configured" });
-    return;
-  }
+  const conn = rows[0] ?? null;
 
-  const conn = rows[0];
+  // Resolve credentials: DB row takes priority, env vars are the fallback
+  let apiKey: string;
   let apiSecret: string;
-  try {
-    apiSecret = decrypt(conn.encryptedSecret, conn.secretIv, conn.secretAuthTag);
-  } catch {
-    res.status(500).json({ error: "Failed to decrypt stored credentials" });
-    return;
+
+  if (conn) {
+    try {
+      apiKey = conn.apiKey;
+      apiSecret = decrypt(conn.encryptedSecret, conn.secretIv, conn.secretAuthTag);
+    } catch {
+      res.status(500).json({ error: "Failed to decrypt stored credentials" });
+      return;
+    }
+  } else {
+    apiKey = process.env.COINBASE_API_KEY ?? "";
+    apiSecret = process.env.COINBASE_API_SECRET ?? "";
+    if (!apiKey || !apiSecret) {
+      res.status(400).json({ error: "No Coinbase connection configured" });
+      return;
+    }
   }
 
   // Ensure the virtual Coinbase CEX chain exists
@@ -136,7 +160,7 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
   const errors: Array<{ account: string; error: string }> = [];
 
   try {
-    const accounts = await listAccounts(conn.apiKey, apiSecret);
+    const accounts = await listAccounts(apiKey, apiSecret);
 
     // Filter to crypto accounts only (exclude fiat/vault)
     const cryptoAccounts = accounts.filter(
@@ -145,7 +169,7 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
 
     for (const account of cryptoAccounts) {
       try {
-        const txs = await listTransactions(conn.apiKey, apiSecret, account.id);
+        const txs = await listTransactions(apiKey, apiSecret, account.id);
 
         // Collect tx IDs already ingested for this account to avoid duplicates
         const incomingHashes = txs
@@ -205,25 +229,28 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
       }
     }
 
-    // Update connection status and counters
-    await db
-      .update(coinbaseConnectionsTable)
-      .set({
-        lastSyncedAt: new Date(),
-        txCount: conn.txCount + synced,
-        status: errors.length > 0 && synced === 0 ? "error" : "active",
-        errorMessage:
-          errors.length > 0 && synced === 0 ? errors[0].error : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(coinbaseConnectionsTable.userId, user.id));
+    // Persist sync stats — upsert so env-var-only users get a row too
+    if (conn) {
+      await db
+        .update(coinbaseConnectionsTable)
+        .set({
+          lastSyncedAt: new Date(),
+          txCount: conn.txCount + synced,
+          status: errors.length > 0 && synced === 0 ? "error" : "active",
+          errorMessage: errors.length > 0 && synced === 0 ? errors[0].error : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(coinbaseConnectionsTable.userId, user.id));
+    }
   } catch (err) {
     // Top-level failure (e.g. listAccounts failed — likely bad credentials)
     const message = err instanceof Error ? err.message : String(err);
-    await db
-      .update(coinbaseConnectionsTable)
-      .set({ status: "error", errorMessage: message, updatedAt: new Date() })
-      .where(eq(coinbaseConnectionsTable.userId, user.id));
+    if (conn) {
+      await db
+        .update(coinbaseConnectionsTable)
+        .set({ status: "error", errorMessage: message, updatedAt: new Date() })
+        .where(eq(coinbaseConnectionsTable.userId, user.id));
+    }
 
     res.status(502).json({ error: message });
     return;
