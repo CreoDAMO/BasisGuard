@@ -48,6 +48,7 @@ lib/
 | `position_records` | Append-only evidence log; `superseded_by` FK for audit trail; `amount_usd` for P&L |
 | `position_citations` | Junction: which authorities back each position |
 | `raw_transactions` | Ingested transaction data; `processed` + `position_record_id` set by adapters |
+| `lots` | Tax lot inventory — one row per acquired lot; tracks cost basis, acquisition date, status (open/closed/partial), and optional realized gain/loss on disposal |
 | `chains` | Supported blockchain networks (slug, RPC URL, metadata) |
 | `protocols` | DeFi protocols (slug links to adapter class; FK to chain) |
 | `chain_submissions` | Community chain onboarding requests |
@@ -131,6 +132,18 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 | GET | `/api/protocols/:id` | Any authenticated |
 | POST | `/api/submit/chain`, `/api/submit/protocol` | Any authenticated |
 
+### Lot Inventory
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/lots` | Any authenticated |
+| POST | `/api/lots` | Any authenticated |
+| GET | `/api/lots/:id` | Any authenticated |
+| PATCH | `/api/lots/:id` | Any authenticated |
+| DELETE | `/api/lots/:id` | Any authenticated |
+
+Query params for `GET /api/lots`: `wallet_id`, `asset_symbol`, `status` (`open`/`closed`/`partial`), `chain_id`, `limit` (1–200, default 50), `offset` (default 0).
+
 ### Admin
 
 | Method | Path | Auth |
@@ -157,6 +170,7 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 | Citations | `/citations` | Searchable IRS authority citations |
 | Profiles | `/profiles` | Versioned treatment rule sets + delta report |
 | Audit Export | `/export` | IRS-Ready Dossier, audit package, pattern report, CPA handoff |
+| Lot Inventory | `/lots` | Full tax lot ledger — cost basis, acquisition date, status filter, paginated; manual entry supported; auto-population from position records planned |
 | Realized-Loss Review | `/harvest` | Realized taxable-disposition losses + wash-sale risk flags (30-day window); not forward-looking unrealized-position analysis |
 | Chain Registry | `/chains` | Supported blockchains and community submissions |
 | Onboarding | `/submissions` | Admin review of chain/protocol submissions |
