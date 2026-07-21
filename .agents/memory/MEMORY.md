@@ -10,3 +10,4 @@
 - [Review rules extraction](review-rules-extraction.md) — OPEN_GAP_EVENT_TYPES + computeRequiresReview + isStale live in core/reviewRules.ts; positions.ts re-exports them
 - [Testing setup](testing-setup.md) — vitest in api-server; 3 test files (reviewRules, washSale, registry); run with pnpm test
 - [Harvest scanner](harvest-scanner.md) — amount_usd (doublePrecision, nullable) on position_records; GET /positions/harvest-candidates; washSaleDetector pure functions; 30-day window
+- [Coinbase CDP integration](coinbase-integration.md) — CDP API keys (not OAuth); AES-256-GCM token encryption; virtual coinbase-cex chain UUID; Coinbase→BasisGuard type map
