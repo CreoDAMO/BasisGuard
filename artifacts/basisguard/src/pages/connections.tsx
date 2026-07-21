@@ -104,7 +104,7 @@ export default function ConnectionsPage() {
             <div>
               <div className="font-medium text-foreground text-sm">Coinbase</div>
               <div className="text-xs text-muted-foreground font-mono">
-                V2 API · Accounts · Staking
+                CDP Advanced Trade · Legacy V2
               </div>
             </div>
           </div>
@@ -151,13 +151,23 @@ export default function ConnectionsPage() {
           <li>All open-gap events are flagged for review automatically</li>
         </ul>
         <a
-          href="https://www.coinbase.com/settings/api"
+          href="https://portal.cdp.coinbase.com/access/api"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-foreground hover:underline mt-2"
         >
           <ExternalLink className="h-3 w-3" />
-          Manage your Coinbase API keys
+          Manage CDP keys (Advanced Trade)
+        </a>
+        <span className="mx-2 text-border">·</span>
+        <a
+          href="https://www.coinbase.com/settings/api"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-foreground hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Legacy API keys
         </a>
       </div>
     </div>
@@ -297,38 +307,69 @@ function ConnectForm({
   saving: boolean;
   error: string | null;
 }) {
+  // Detect CDP vs legacy based on key name format
+  const isCdp =
+    apiKey.includes("/apiKeys/") ||
+    apiSecret.includes("BEGIN EC PRIVATE KEY") ||
+    apiSecret.includes("BEGIN PRIVATE KEY");
+
   return (
     <div className="space-y-4">
+      {/* Key type tabs */}
+      <div className="flex gap-1 p-1 bg-muted/30 rounded-sm w-fit text-[11px] font-mono">
+        <span className={`px-2 py-0.5 rounded-sm ${isCdp ? "bg-card text-foreground" : "text-muted-foreground"}`}>
+          CDP (Advanced Trade)
+        </span>
+        <span className={`px-2 py-0.5 rounded-sm ${!isCdp && apiKey ? "bg-card text-foreground" : "text-muted-foreground"}`}>
+          Legacy V2
+        </span>
+      </div>
+
       <p className="text-sm text-muted-foreground">
-        Enter your Coinbase API Key and Secret to import transaction history. The secret is
-        encrypted at rest and never exposed after saving.
+        {isCdp
+          ? "Using CDP key format — your EC private key will be stored encrypted and used to sign JWT requests to the Advanced Trade API."
+          : "Enter your Coinbase API credentials. For CDP keys, paste the full key name (organizations/…/apiKeys/…) and your EC private key. Credentials are encrypted at rest."}
       </p>
 
       <div className="space-y-3">
         <div className="space-y-1.5">
           <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            API Key
+            {isCdp ? "Key Name" : "API Key"}
           </label>
           <input
             type="text"
             value={apiKey}
             onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder="Your Coinbase API key"
+            placeholder={
+              isCdp
+                ? "organizations/abc123/apiKeys/def456"
+                : "Your Coinbase API key"
+            }
             className="w-full bg-input border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono"
           />
         </div>
 
         <div className="space-y-1.5">
           <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-            API Secret
+            {isCdp ? "EC Private Key (PEM)" : "API Secret"}
           </label>
-          <input
-            type="password"
-            value={apiSecret}
-            onChange={(e) => onApiSecretChange(e.target.value)}
-            placeholder="Your Coinbase API secret"
-            className="w-full bg-input border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono"
-          />
+          {isCdp ? (
+            <textarea
+              value={apiSecret}
+              onChange={(e) => onApiSecretChange(e.target.value)}
+              rows={6}
+              placeholder={"-----BEGIN EC PRIVATE KEY-----\nMHQCAQEEI...\n-----END EC PRIVATE KEY-----"}
+              className="w-full bg-input border border-border rounded-sm px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono resize-none"
+            />
+          ) : (
+            <input
+              type="password"
+              value={apiSecret}
+              onChange={(e) => onApiSecretChange(e.target.value)}
+              placeholder="Your Coinbase API secret"
+              className="w-full bg-input border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono"
+            />
+          )}
         </div>
       </div>
 

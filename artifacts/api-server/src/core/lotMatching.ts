@@ -14,7 +14,9 @@ import { db, lotsTable, positionRecordsTable } from "@workspace/db";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@workspace/db";
 
-type Tx = NodePgDatabase<typeof schema>;
+// db.transaction() passes a subtype of NodePgDatabase that TypeScript resolves
+// from the compiled dist schema — use Parameters to derive the exact type.
+type Tx = Parameters<Parameters<typeof db["transaction"]>[0]>[0];
 
 /** Fields needed to auto-create a lot from an acquisition event. */
 export interface LotAcquisitionInput {

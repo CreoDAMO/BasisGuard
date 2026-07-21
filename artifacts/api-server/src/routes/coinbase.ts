@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, inArray } from "drizzle-orm";
 import { db, coinbaseConnectionsTable, rawTransactionsTable, chainsTable } from "@workspace/db";
 import { encrypt, decrypt } from "../lib/encrypt.js";
-import { listAccounts, listTransactions, mapEventType } from "../lib/coinbaseClient.js";
+import { fetchAllTransactions } from "../lib/coinbaseClient.js";
 
 const router: IRouter = Router();
 
@@ -157,93 +157,61 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
 
   let synced = 0;
   let skipped = 0;
-  const errors: Array<{ account: string; error: string }> = [];
 
   try {
-    const accounts = await listAccounts(apiKey, apiSecret);
-
-    // Filter to crypto accounts only (exclude fiat/vault)
-    const cryptoAccounts = accounts.filter(
-      (a) => a.type === "ACCOUNT_TYPE_CRYPTO" || a.currency?.code !== "USD",
+    const since = conn?.lastSyncedAt ?? undefined;
+    const transactions = await fetchAllTransactions(
+      apiKey,
+      apiSecret,
+      `coinbase:${user.clerkId}`,
+      since,
     );
 
-    for (const account of cryptoAccounts) {
-      try {
-        const txs = await listTransactions(apiKey, apiSecret, account.id);
+    // Deduplicate against existing raw_transactions rows
+    const incomingHashes = transactions.map((t) => t.txHash);
+    const existing =
+      incomingHashes.length > 0
+        ? await db
+            .select({ txHash: rawTransactionsTable.txHash })
+            .from(rawTransactionsTable)
+            .where(
+              and(
+                eq(rawTransactionsTable.chainId, COINBASE_CHAIN_UUID),
+                inArray(rawTransactionsTable.txHash, incomingHashes),
+              ),
+            )
+        : [];
 
-        // Collect tx IDs already ingested for this account to avoid duplicates
-        const incomingHashes = txs
-          .map((t) => t.network?.hash ?? t.id)
-          .filter(Boolean) as string[];
+    const existingHashes = new Set(existing.map((r) => r.txHash));
 
-        const existing =
-          incomingHashes.length > 0
-            ? await db
-                .select({ txHash: rawTransactionsTable.txHash })
-                .from(rawTransactionsTable)
-                .where(
-                  and(
-                    eq(rawTransactionsTable.chainId, COINBASE_CHAIN_UUID),
-                    inArray(rawTransactionsTable.txHash, incomingHashes),
-                  ),
-                )
-            : [];
-
-        const existingHashes = new Set(existing.map((r) => r.txHash));
-
-        for (const tx of txs) {
-          const txHash = tx.network?.hash ?? tx.id;
-
-          if (existingHashes.has(txHash)) {
-            skipped++;
-            continue;
-          }
-
-          await db.insert(rawTransactionsTable).values({
-            chainId: COINBASE_CHAIN_UUID,
-            walletAddress: `coinbase:${account.id}`,
-            txHash,
-            txDate: tx.created_at ? new Date(tx.created_at) : null,
-            eventType: mapEventType(tx.type),
-            rawData: {
-              coinbase_id: tx.id,
-              coinbase_type: tx.type,
-              amount: tx.amount,
-              native_amount: tx.native_amount,
-              status: tx.status,
-              account_id: account.id,
-              account_name: account.name,
-              currency: account.currency?.code,
-              description: tx.description ?? null,
-            },
-            ingestedBy: user.clerkId,
-          });
-
-          synced++;
-        }
-      } catch (err) {
-        errors.push({
-          account: `${account.name} (${account.id})`,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+    for (const tx of transactions) {
+      if (existingHashes.has(tx.txHash)) { skipped++; continue; }
+      await db.insert(rawTransactionsTable).values({
+        chainId: COINBASE_CHAIN_UUID,
+        walletAddress: tx.walletAddress,
+        txHash: tx.txHash,
+        txDate: tx.txDate,
+        eventType: tx.eventType,
+        rawData: tx.rawData,
+        ingestedBy: user.clerkId,
+      });
+      synced++;
     }
 
-    // Persist sync stats — upsert so env-var-only users get a row too
+    // Persist sync stats
     if (conn) {
       await db
         .update(coinbaseConnectionsTable)
         .set({
           lastSyncedAt: new Date(),
           txCount: conn.txCount + synced,
-          status: errors.length > 0 && synced === 0 ? "error" : "active",
-          errorMessage: errors.length > 0 && synced === 0 ? errors[0].error : null,
+          status: "active",
+          errorMessage: null,
           updatedAt: new Date(),
         })
         .where(eq(coinbaseConnectionsTable.userId, user.id));
     }
   } catch (err) {
-    // Top-level failure (e.g. listAccounts failed — likely bad credentials)
     const message = err instanceof Error ? err.message : String(err);
     if (conn) {
       await db
@@ -251,12 +219,11 @@ router.post("/coinbase/sync", async (req, res): Promise<void> => {
         .set({ status: "error", errorMessage: message, updatedAt: new Date() })
         .where(eq(coinbaseConnectionsTable.userId, user.id));
     }
-
     res.status(502).json({ error: message });
     return;
   }
 
-  res.json({ synced, skipped, errors });
+  res.json({ synced, skipped, errors: [] });
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
