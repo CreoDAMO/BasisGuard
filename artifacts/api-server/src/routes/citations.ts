@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and } from "drizzle-orm";
-import { db, authorityCitationsTable } from "@workspace/db";
+import { eq, ilike, and, isNotNull } from "drizzle-orm";
+import { db, authorityCitationsTable, positionCitationsTable, positionRecordsTable } from "@workspace/db";
+import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 import {
   CreateCitationBody,
   UpdateCitationBody,
@@ -45,8 +46,9 @@ router.get("/citations", async (req, res): Promise<void> => {
   res.json(items.map(serializeCitation));
 });
 
-// POST /citations
-router.post("/citations", async (req, res): Promise<void> => {
+// POST /citations — admin only: unreviewed citations entering the library is the same
+// backdoor as direct chain/protocol creation bypassing the submissions workflow.
+router.post("/citations", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const parsed = CreateCitationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -81,8 +83,8 @@ router.get("/citations/:id", async (req, res): Promise<void> => {
   res.json(serializeCitation(citation));
 });
 
-// PATCH /citations/:id
-router.patch("/citations/:id", async (req, res): Promise<void> => {
+// PATCH /citations/:id — admin only
+router.patch("/citations/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const params = UpdateCitationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -113,15 +115,52 @@ router.patch("/citations/:id", async (req, res): Promise<void> => {
   res.json(serializeCitation(citation));
 });
 
-// DELETE /citations/:id
-router.delete("/citations/:id", async (req, res): Promise<void> => {
+// DELETE /citations/:id — admin only.
+//
+// Extra guard beyond the role gate: we block deletion of any citation that is
+// currently linked to a signed-off position.  The cascade is ON DELETE CASCADE,
+// so an unguarded delete would silently strip the citation from every signed
+// position's evidentiary basis — bypassing the same immutability rule enforced
+// on PATCH /positions/:id.  Admins who genuinely need to remove a bad citation
+// must first supersede the positions that reference it.
+router.delete("/citations/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const params = DeleteCitationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [deleted] = await db.delete(authorityCitationsTable).where(eq(authorityCitationsTable.id, params.data.id)).returning();
+  // Check whether this citation is referenced by any signed-off position.
+  const signedReferences = await db
+    .select({ positionId: positionCitationsTable.positionId })
+    .from(positionCitationsTable)
+    .innerJoin(
+      positionRecordsTable,
+      eq(positionCitationsTable.positionId, positionRecordsTable.id),
+    )
+    .where(
+      and(
+        eq(positionCitationsTable.citationId, params.data.id),
+        isNotNull(positionRecordsTable.reviewerSignoffAt),
+      ),
+    )
+    .limit(1);
+
+  if (signedReferences.length > 0) {
+    res.status(409).json({
+      error:
+        "Cannot delete a citation that is linked to one or more signed-off positions. " +
+        "Supersede those positions first to remove their dependency on this citation.",
+      signed_position_id: signedReferences[0]!.positionId,
+    });
+    return;
+  }
+
+  const [deleted] = await db
+    .delete(authorityCitationsTable)
+    .where(eq(authorityCitationsTable.id, params.data.id))
+    .returning();
+
   if (!deleted) {
     res.status(404).json({ error: "Citation not found" });
     return;

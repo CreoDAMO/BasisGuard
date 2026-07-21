@@ -57,7 +57,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
  * middleware chain — it reads req.user which requireAuth populates.
  * Returns 403 if the user's role is not in the allowed list.
  */
-export function requireRole(roles: string[]) {
+export function requireRole(roles: readonly string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const role = req.user?.role;
     if (!role || !roles.includes(role)) {

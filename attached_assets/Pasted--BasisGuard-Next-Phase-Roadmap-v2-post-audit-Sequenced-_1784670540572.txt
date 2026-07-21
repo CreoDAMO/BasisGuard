@@ -1,0 +1,61 @@
+# BasisGuard — Next Phase Roadmap (v2, post-audit)
+
+Sequenced by dependency and severity. Tier 0 changed materially after the full system audit — it's no longer three small fixes, it's one policy gap with five concrete instances, plus the items already known.
+
+---
+
+## Tier 0 — Fix before anything else
+
+Not schedulable technical debt — two of these currently falsify guarantees the product states outright.
+
+**The root cause, fix once, not five times:** role-gating was applied to the routes built and discussed explicitly (signoff, submissions approval) but not applied as a consistent policy to every other mutating endpoint with equivalent weight. The fix is a deliberate access-control pass across every write route, not five isolated patches.
+
+0a. **`PATCH /positions/:id` — enforce immutability, not just access control.** This is a business-logic fix, not only a role gate: once `reviewerSignoffAt` is set, the endpoint must reject direct edits and require a supersession instead. Right now it silently allows rewriting rationale, `requires_review`, and every cited authority on an already-signed position with no new signoff and no trace. This is the single highest-priority fix — it directly falsifies "immutable once signed."
+
+0b. **`DELETE /citations/:id` (and `PATCH`) — role-gate immediately.** `position_citations` cascades on delete, so an ungated delete silently strips a citation from every position that ever referenced it, with zero audit trail. The citation library is the root of trust for every tier calculation in the system; it's currently the least protected table in the database.
+
+0c. **`POST /chains` / `POST /protocols` — close the direct-create backdoor.** These bypass the `/submit/chain` → admin-approval workflow entirely. Either remove direct creation and force everything through submissions, or gate it with `requireRole(ADMIN_ROLES)` same as approval.
+
+0d. **`POST /profiles` / `PATCH /profiles/:id` — role-gate.** Treatment Profiles are the ruleset auto-applied to new positions system-wide; any authenticated user can currently change what gets auto-applied going forward.
+
+0e. **`lots.ts` — role-gate `PATCH /lots/:id`.** Same pattern as 0b–0d, applied to disposal/gain-loss fields.
+
+0f. **`SESSION_SECRET` fail-fast in `encrypt.ts`.** Remove the hardcoded fallback; refuse to start without the env var set. Carried over from before the audit — still open.
+
+0g. **Enforce the tier ceiling at write time.** `POST /positions`, `PATCH /positions/:id`, and the supersede route still accept any caller-supplied `tier` with no validation against the citation-computed ceiling. Carried over — still open.
+
+0h. **Wrap multi-step writes in real DB transactions.** `db.transaction()` is used nowhere in the codebase — position + citations, lot + position link, and every other multi-statement write is a sequence of independent inserts. Lower urgency than 0a–0g (no known live failure case yet), but it's the same "policy, not patches" category, and it's cheap to fix alongside 0a–0e while those routes are already open.
+
+---
+
+## Tier 1 — Foundational wiring (unblocks Tier 3)
+
+1. **Wire Lot Inventory into the classification pipeline.** `lotsTable` is referenced in exactly two files — its own schema and its own CRUD route. Nothing auto-creates a lot on acquisition or matches/closes one on disposition. Needs a real FIFO/specific-ID matching algorithm per wallet, per Rev. Proc. 2024-28, triggered from `createPositionFromClassification`.
+2. **Price oracle integration.** `unrealized_gain_loss_usd` is hardcoded `null`. Even a simple cached spot-price lookup unblocks real "what's underwater right now" analysis.
+
+---
+
+## Tier 2 — Ready to build now, no blockers
+
+3. **Notifications & alerts** — bell icon, unread count, daily/weekly digests for stale positions and review-queue backlog, configurable preferences.
+4. **Production hardening — the real parts.** Not the console.log cleanup (there isn't any — pino's already exclusive with proper redaction). What's actually missing: a `/metrics` endpoint and rate limiting, both genuinely needed now that there's a live outbound dependency on Coinbase's rate limits and a real inbound classify/sync surface.
+5. **Test coverage for the newest, most sensitive code.** `washSaleDetector`, `reviewRules`, and `registry` have real suites; the Coinbase sync, the encryption round-trip, and the lots/citations/profiles/chains routes — i.e., everything touched in the audit — currently have none.
+
+---
+
+## Tier 3 — Depends on Tier 1
+
+6. **Advanced analytics / "Tax Optimizer" / what-if simulation** — needs Lot Inventory actually populated and live prices. Built today, it's UI wrapped around numbers the system can't yet produce.
+7. **Estate module (basis step-up simulator)** — doesn't exist anywhere in the codebase yet; also depends on real lot data to simulate a step-up against.
+
+---
+
+## Tier 4 — Depends on Tier 0f (encryption fix)
+
+8. **Multi-exchange expansion (Kraken, Gemini, etc.)** — the pluggable-connector abstraction is good engineering on its own, but every new exchange means encrypting another real credential through `encrypt.ts`. After 0f, not alongside it.
+
+---
+
+## Suggested next batch
+
+Tier 0 in full, as one pass — it's a single access-control policy plus two carried-over fixes plus one atomicity cleanup, all touching the same routes, cheaper to do together than staggered. Tier 2 (3–5) right after, since nothing blocks it. Tier 1 (1–2) as the phase after that — it's the real unlock for Tier 3. Tier 4 whenever 0f is closed.

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, treatmentProfilesTable, positionRecordsTable } from "@workspace/db";
+import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 import {
   CreateProfileBody,
   UpdateProfileBody,
@@ -38,8 +39,11 @@ router.get("/profiles", async (req, res): Promise<void> => {
   res.json(items.map(serializeProfile));
 });
 
-// POST /profiles
-router.post("/profiles", async (req, res): Promise<void> => {
+// POST /profiles — admin only.
+// Treatment Profiles are the ruleset auto-applied to new positions system-wide.
+// Any authenticated user being able to change what tier/classification gets
+// auto-applied would be a silent, far-reaching write.
+router.post("/profiles", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const parsed = CreateProfileBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -73,8 +77,8 @@ router.get("/profiles/:id", async (req, res): Promise<void> => {
   res.json(serializeProfile(profile));
 });
 
-// PATCH /profiles/:id
-router.patch("/profiles/:id", async (req, res): Promise<void> => {
+// PATCH /profiles/:id — admin only (same rationale as POST /profiles).
+router.patch("/profiles/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const params = UpdateProfileParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

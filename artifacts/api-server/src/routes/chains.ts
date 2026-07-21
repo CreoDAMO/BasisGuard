@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, chainsTable, protocolsTable } from "@workspace/db";
+import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 
 const router: IRouter = Router();
 
@@ -35,8 +36,11 @@ router.get("/chains", async (_req, res): Promise<void> => {
   res.json(rows.map(serializeChain));
 });
 
-// POST /chains
-router.post("/chains", async (req, res): Promise<void> => {
+// POST /chains — admin only.
+// Direct creation bypasses the /submit/chain → admin-approval workflow in
+// submissions.ts.  Gate it to the same roles that can approve submissions so
+// there is only one path for unapproved chains to enter the registry.
+router.post("/chains", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const { name, slug, is_l2, parent_chain_id, metadata } = req.body as {
     name: string;
     slug: string;
@@ -79,8 +83,8 @@ router.get("/protocols", async (req, res): Promise<void> => {
   res.json(rows.map(serializeProtocol));
 });
 
-// POST /protocols
-router.post("/protocols", async (req, res): Promise<void> => {
+// POST /protocols — admin only (same rationale as POST /chains above).
+router.post("/protocols", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const { chain_id, name, slug, contract_addresses, adapter_version, metadata } = req.body as {
     chain_id: string;
     name: string;

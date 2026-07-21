@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, count } from "drizzle-orm";
 import { db, lotsTable } from "@workspace/db";
+import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 import { z } from "zod";
 
 // ── Validation schemas (strict — tighter than generated OpenAPI schemas) ─────
@@ -220,8 +221,12 @@ router.get("/lots/:id", async (req, res): Promise<void> => {
   res.json(serializeLot(rows[0]));
 });
 
-// PATCH /lots/:id
-router.patch("/lots/:id", async (req, res): Promise<void> => {
+// PATCH /lots/:id — admin only.
+// Disposal fields (disposal_position_id, disposal_proceeds_usd,
+// realized_gain_loss_usd) directly set gain/loss figures that feed into
+// tax calculations; unrestricted editing is equivalent to letting any user
+// falsify a tax record.
+router.patch("/lots/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
   const parsed = PatchLotBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -229,7 +234,8 @@ router.patch("/lots/:id", async (req, res): Promise<void> => {
   }
   const d = parsed.data;
 
-  const existing = await db.select().from(lotsTable).where(eq(lotsTable.id, req.params.id)).limit(1);
+  const lotId = String(req.params.id);
+  const existing = await db.select().from(lotsTable).where(eq(lotsTable.id, lotId)).limit(1);
   if (existing.length === 0) {
     res.status(404).json({ error: "Lot not found" });
     return;
@@ -249,7 +255,7 @@ router.patch("/lots/:id", async (req, res): Promise<void> => {
   const [updated] = await db
     .update(lotsTable)
     .set(updates)
-    .where(eq(lotsTable.id, req.params.id))
+    .where(eq(lotsTable.id, lotId))
     .returning();
 
   res.json(serializeLot(updated));

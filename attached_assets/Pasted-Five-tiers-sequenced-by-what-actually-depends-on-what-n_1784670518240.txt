@@ -1,0 +1,47 @@
+Five tiers, sequenced by what actually depends on what — not by which feature sounds best.
+
+**Tier 0 (small, urgent):** the `SESSION_SECRET` fallback, `lots.ts` role-gating, and tier-ceiling enforcement at write time — three things flagged across this review that are still open and small enough to close fast.
+
+**Tier 1 (the real unlock):** wiring Lot Inventory into the classification pipeline and adding a price oracle. Nothing forward-looking works until these exist for real instead of as an empty CRUD table.
+
+**Tier 2 (ready now, no blockers):** Notifications as proposed, plus the parts of Production Hardening that are actually still missing (`/metrics`, rate limiting — not the console.log cleanup, since there isn't any), plus test coverage for the newest and most sensitive code, which currently has none.
+
+**Tier 3 (blocked on Tier 1):** the Tax Optimizer/simulation idea and the estate module — genuinely good ideas, sitting behind data that doesn't exist yet.
+
+**Tier 4 (blocked on Tier 0):** multi-exchange expansion — good engineering, wrong sequencing if it happens before the encryption fix.
+
+Suggested first batch: items 1–3 and 6–8 together — the urgent fixes plus everything that's actually ready. Want me to start on the `SESSION_SECRET` and `lots.ts` fixes right now, since those are both in that first batch?
+
+Now before you finalize that let's do one thing a full system audit
+
+Full pass across every route file, not just the ones that came up in conversation — this surfaces something bigger than any single bug: **role-gating was applied to the routes we explicitly discussed, but not consistently to everything with equivalent weight.** Five real gaps share that one root cause.
+
+**Most severe — this one falsifies the product's core promise.** `PATCH /positions/:id` never checks whether the position is already signed off. I read the handler directly: it goes straight to `db.update()` with no guard. Any authenticated user can silently rewrite the rationale, `requires_review`, and swap out every cited authority on a position a CPA already signed — and the original `reviewerSignoffAt`/`reviewerName`/`reviewerCredential` stay on the record untouched, now misrepresenting what that person actually attested to. No supersession record, no trace. The README says "immutable once signed... changes require a superseding record." Right now that's aspirational, not enforced.
+
+**Second — same category, larger blast radius.** `DELETE /citations/:id` has no role gate at all, and I checked the schema: `position_citations` has `onDelete: "cascade"`. Any user deleting a citation silently removes it from every position that ever cited it, across every tax year, with zero audit trail. The citation library is the root of trust for every tier calculation in the system — it's currently the least protected table in the database.
+
+**Third — a real backdoor around a feature I already verified as solid.** `POST /chains` and `POST /protocols` create records directly, with no role gate — completely bypassing the `/submit/chain` → admin-approval workflow submissions.ts implements. The approval gate exists on one door into the chains/protocols tables and not the other.
+
+**Fourth, same pattern again.** `POST /profiles` and `PATCH /profiles/:id` — Treatment Profiles, the ruleset auto-applied to new positions — are editable by any authenticated user. Any user can change what tier and classification get auto-applied going forward.
+
+**Fifth, already flagged, same family:** `lots.ts` PATCH, still open.
+
+**One more, lower severity but systemic:** `db.transaction()` is used exactly zero times anywhere in the codebase. Every multi-step write — position + its citations, lot + its position link — is a sequence of independent statements. Low risk of actually triggering, but if one fails partway, nothing rolls back.
+
+**What's confirmed clean, for balance:** `coinbase.ts` correctly scopes every query to `req.user.id` — no cross-user access. Submissions and both signoff routes are correctly role-gated, exactly as built.
+
+**This changes Tier 0.** The roadmap I just gave you undersold this — it's not five isolated bugs to schedule, it's one policy that needs to exist once and apply everywhere: every write to a position, citation, profile, chain, or protocol needs an explicit, deliberate access-control decision, not an implicit "authenticated is enough." Want me to fix the immutability check and the citation-deletion gate first — the two that actually falsify a stated guarantee — before touching anything else on the list?
+
+Now you see why I asked for the audit, now let's update the Roadmap
+
+This is exactly why the audit mattered — Tier 0 went from three small fixes to one policy gap with eight concrete instances, and it's now clearly the highest-priority phase, not a side item.
+
+**What changed:** the five access-control gaps (positions immutability, citations delete, chains/protocols backdoor, profiles, lots) are now framed as one fix applied consistently — a real access-control pass across every write route — rather than five separate patches, plus the position-immutability fix specifically needs actual business logic (reject edits post-signoff, require supersession), not just a role check. `SESSION_SECRET` and tier-ceiling enforcement carry over unchanged. Transaction wrapping is folded in as a cheap add-on since those same routes are already being touched.
+
+Tiers 1–4 are unchanged from before — the audit didn't surface anything that alters the Lot Inventory/price-oracle/notifications/analytics/multi-exchange sequencing, just confirmed Tier 0 needed to get bigger and go first.
+
+Good — 0a is done. Now 0b, gating the citation library:
+
+Both done. **0a:** `PATCH /positions/:id` now fetches the existing record first and rejects with `409` if `reviewerSignoffAt` is already set, pointing the caller to `/supersede` instead — checked before any update runs, not after. **0b:** all three citation mutation routes (`POST`, `PATCH`, `DELETE`) now require `requireRole(ADMIN_ROLES)` — I gated `POST` too, not just the two you named, since unreviewed citations landing directly in a supposedly-curated library is the same backdoor pattern as the chains/protocols issue.
+
+**One residual thing worth flagging, not fixed yet:** even with `DELETE /citations/:id` now admin-only, the cascade itself is still there — an admin deleting a citation still silently strips it from every position that cited it, including already-signed ones, with no supersession created. Gating it to admins makes this a low-probability event instead of an open door, but the underlying gap — a citation deletion can alter a signed position's evidentiary basis without going through the same immutability rule I just added to `PATCH /positions/:id` — is still real. Worth either blocking deletion of any citation currently linked to a signed position, or making it soft-delete only. Didn't fold that into this patch since it's a different piece of logic than what you asked for, but wanted it on the record before we move on.

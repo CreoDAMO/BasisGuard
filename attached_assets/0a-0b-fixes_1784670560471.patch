@@ -1,0 +1,67 @@
+diff --git a/artifacts/api-server/src/routes/citations.ts b/artifacts/api-server/src/routes/citations.ts
+index 0389bb4..253ef41 100644
+--- a/artifacts/api-server/src/routes/citations.ts
++++ b/artifacts/api-server/src/routes/citations.ts
+@@ -1,6 +1,7 @@
+ import { Router, type IRouter } from "express";
+ import { eq, ilike, and } from "drizzle-orm";
+ import { db, authorityCitationsTable } from "@workspace/db";
++import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
+ import {
+   CreateCitationBody,
+   UpdateCitationBody,
+@@ -46,7 +47,7 @@ router.get("/citations", async (req, res): Promise<void> => {
+ });
+ 
+ // POST /citations
+-router.post("/citations", async (req, res): Promise<void> => {
++router.post("/citations", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
+   const parsed = CreateCitationBody.safeParse(req.body);
+   if (!parsed.success) {
+     res.status(400).json({ error: parsed.error.message });
+@@ -82,7 +83,7 @@ router.get("/citations/:id", async (req, res): Promise<void> => {
+ });
+ 
+ // PATCH /citations/:id
+-router.patch("/citations/:id", async (req, res): Promise<void> => {
++router.patch("/citations/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
+   const params = UpdateCitationParams.safeParse(req.params);
+   if (!params.success) {
+     res.status(400).json({ error: params.error.message });
+@@ -114,7 +115,7 @@ router.patch("/citations/:id", async (req, res): Promise<void> => {
+ });
+ 
+ // DELETE /citations/:id
+-router.delete("/citations/:id", async (req, res): Promise<void> => {
++router.delete("/citations/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
+   const params = DeleteCitationParams.safeParse(req.params);
+   if (!params.success) {
+     res.status(400).json({ error: params.error.message });
+diff --git a/artifacts/api-server/src/routes/positions.ts b/artifacts/api-server/src/routes/positions.ts
+index f9d3024..efbd147 100644
+--- a/artifacts/api-server/src/routes/positions.ts
++++ b/artifacts/api-server/src/routes/positions.ts
+@@ -402,6 +402,23 @@ router.patch("/positions/:id", async (req, res): Promise<void> => {
+ 
+   const { citation_ids, ...rest } = parsed.data as typeof parsed.data & { citation_ids?: string[] };
+ 
++  const [existing] = await db
++    .select({ id: positionRecordsTable.id, reviewerSignoffAt: positionRecordsTable.reviewerSignoffAt })
++    .from(positionRecordsTable)
++    .where(eq(positionRecordsTable.id, params.data.id));
++
++  if (!existing) {
++    res.status(404).json({ error: "Position not found" });
++    return;
++  }
++
++  if (existing.reviewerSignoffAt !== null) {
++    res.status(409).json({
++      error: "Position is signed off and immutable. Use POST /positions/:id/supersede to record a change.",
++    });
++    return;
++  }
++
+   const [position] = await db.update(positionRecordsTable)
+     .set({
+       ...(rest.rationale !== undefined && { rationale: rest.rationale }),

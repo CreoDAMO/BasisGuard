@@ -4,7 +4,15 @@ import crypto from "node:crypto";
 const KDF_SALT = "basisguard-coinbase-enc-v1";
 
 function getDerivedKey(): Buffer {
-  const secret = process.env.SESSION_SECRET ?? "dev-only-fallback-do-not-use-in-production";
+  const secret = process.env["SESSION_SECRET"];
+  if (!secret) {
+    // Fail hard — a missing SESSION_SECRET means credentials stored with the
+    // fallback key are silently using a publicly-known value.  Refuse to start.
+    throw new Error(
+      "SESSION_SECRET environment variable is required but was not set. " +
+        "Set it to a strong random value before running the server.",
+    );
+  }
   return crypto.scryptSync(secret, KDF_SALT, 32);
 }
 
