@@ -12,6 +12,7 @@ import submissionsRouter from "./submissions";
 import intelligenceRouter from "./intelligence";
 import transactionsRouter from "./transactions";
 import lotsRouter from "./lots";
+import coinbaseRouter from "./coinbase";
 
 const router: IRouter = Router();
 
@@ -33,5 +34,6 @@ router.use(chainsRouter);
 router.use(submissionsRouter);
 router.use(transactionsRouter);
 router.use(lotsRouter);
+router.use(coinbaseRouter);
 
 export default router;

@@ -8,3 +8,4 @@ export * from "./submissions";
 export * from "./users";
 export * from "./raw_transactions";
 export * from "./lots";
+export * from "./coinbase_connections";

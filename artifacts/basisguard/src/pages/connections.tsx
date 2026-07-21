@@ -1,0 +1,364 @@
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link2, Link2Off, RefreshCw, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+interface ConnectionStatus {
+  connected: boolean;
+  key_name?: string;
+  last_synced_at?: string | null;
+  tx_count?: number;
+  status?: string;
+  error_message?: string | null;
+}
+
+interface SyncResult {
+  synced: number;
+  skipped: number;
+  errors: Array<{ account: string; error: string }>;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function ConnectionsPage() {
+  const qc = useQueryClient();
+
+  const { data: conn, isLoading } = useQuery<ConnectionStatus>({
+    queryKey: ["coinbase-connection"],
+    queryFn: () => apiFetch("/api/coinbase/connection"),
+  });
+
+  const [keyName, setKeyName] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      apiFetch("/api/coinbase/connection", {
+        method: "POST",
+        body: JSON.stringify({ key_name: keyName, private_key: privateKey }),
+      }),
+    onSuccess: () => {
+      setSaveError(null);
+      setKeyName("");
+      setPrivateKey("");
+      qc.invalidateQueries({ queryKey: ["coinbase-connection"] });
+    },
+    onError: (e: Error) => setSaveError(e.message),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: () => apiFetch("/api/coinbase/connection", { method: "DELETE" }),
+    onSuccess: () => {
+      setSyncResult(null);
+      qc.invalidateQueries({ queryKey: ["coinbase-connection"] });
+    },
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () =>
+      apiFetch<SyncResult>("/api/coinbase/sync", { method: "POST" }),
+    onSuccess: (data) => {
+      setSyncResult(data);
+      qc.invalidateQueries({ queryKey: ["coinbase-connection"] });
+    },
+  });
+
+  return (
+    <div className="p-6 md:p-8 max-w-2xl space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="font-serif text-2xl font-semibold tracking-wide uppercase text-foreground">
+          Connections
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Import transaction history directly from exchanges and on-chain data sources.
+        </p>
+      </div>
+
+      {/* Coinbase Card */}
+      <div className="border border-border rounded-sm bg-card">
+        {/* Card header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-sm bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-bold text-sm">₿</span>
+            </div>
+            <div>
+              <div className="font-medium text-foreground text-sm">Coinbase</div>
+              <div className="text-xs text-muted-foreground font-mono">
+                Advanced Trade · V2 Accounts · Staking
+              </div>
+            </div>
+          </div>
+          {!isLoading && (
+            <StatusBadge status={conn?.connected ? conn.status ?? "active" : "disconnected"} />
+          )}
+        </div>
+
+        {/* Card body */}
+        <div className="px-5 py-5 space-y-5">
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : conn?.connected ? (
+            <ConnectedView
+              conn={conn}
+              syncResult={syncResult}
+              onSync={() => { setSyncResult(null); syncMutation.mutate(); }}
+              onDisconnect={() => disconnectMutation.mutate()}
+              syncing={syncMutation.isPending}
+              disconnecting={disconnectMutation.isPending}
+              syncError={syncMutation.error?.message ?? null}
+            />
+          ) : (
+            <ConnectForm
+              keyName={keyName}
+              privateKey={privateKey}
+              onKeyNameChange={setKeyName}
+              onPrivateKeyChange={setPrivateKey}
+              onSave={() => saveMutation.mutate()}
+              saving={saveMutation.isPending}
+              error={saveError}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Docs callout */}
+      <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-4">
+        <p className="font-mono uppercase tracking-wider text-[10px]">What gets imported</p>
+        <ul className="list-disc list-inside space-y-0.5 mt-1">
+          <li>Trades, buys, sells, sends, receives — mapped to BasisGuard event types</li>
+          <li>Staking rewards and Coinbase Earn payouts → <span className="font-mono">staking_reward</span> (Rev. Rul. 2023-14)</li>
+          <li>Asset wraps/unwraps → <span className="font-mono">bridge_transfer</span></li>
+          <li>All open-gap events are flagged for review automatically</li>
+        </ul>
+        <a
+          href="https://docs.cdp.coinbase.com/coinbase-app/docs/api-key-authentication"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-foreground hover:underline mt-2"
+        >
+          <ExternalLink className="h-3 w-3" />
+          How to create a CDP API key
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "disconnected") {
+    return (
+      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground border border-border px-2 py-0.5 rounded-sm">
+        Not connected
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="font-mono text-[10px] uppercase tracking-wider text-red-400 border border-red-800 px-2 py-0.5 rounded-sm">
+        Error
+      </span>
+    );
+  }
+  return (
+    <span className="font-mono text-[10px] uppercase tracking-wider text-green-400 border border-green-800 px-2 py-0.5 rounded-sm">
+      Connected
+    </span>
+  );
+}
+
+function ConnectedView({
+  conn,
+  syncResult,
+  onSync,
+  onDisconnect,
+  syncing,
+  disconnecting,
+  syncError,
+}: {
+  conn: ConnectionStatus;
+  syncResult: SyncResult | null;
+  onSync: () => void;
+  onDisconnect: () => void;
+  syncing: boolean;
+  disconnecting: boolean;
+  syncError: string | null;
+}) {
+  return (
+    <div className="space-y-4">
+      {/* Key info */}
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <InfoRow label="Key name" value={conn.key_name ?? "—"} />
+        <InfoRow
+          label="Last synced"
+          value={
+            conn.last_synced_at
+              ? new Date(conn.last_synced_at).toLocaleString()
+              : "Never"
+          }
+        />
+        <InfoRow label="Transactions imported" value={String(conn.tx_count ?? 0)} />
+        <InfoRow label="Status" value={conn.status === "error" ? "Error" : "Active"} />
+      </div>
+
+      {/* Error message */}
+      {conn.status === "error" && conn.error_message && (
+        <div className="flex items-start gap-2 text-xs text-red-400 bg-red-950/30 border border-red-800 rounded-sm px-3 py-2">
+          <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          <span>{conn.error_message}</span>
+        </div>
+      )}
+
+      {/* Sync result */}
+      {syncResult && (
+        <div className="flex items-start gap-2 text-xs bg-muted/30 border border-border rounded-sm px-3 py-2">
+          <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-green-400" />
+          <span className="text-foreground">
+            Sync complete — <strong>{syncResult.synced}</strong> new transactions imported,{" "}
+            <strong>{syncResult.skipped}</strong> already present.
+            {syncResult.errors.length > 0 && (
+              <span className="text-yellow-400">
+                {" "}
+                {syncResult.errors.length} account error(s).
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Sync error */}
+      {syncError && (
+        <div className="flex items-start gap-2 text-xs text-red-400 bg-red-950/30 border border-red-800 rounded-sm px-3 py-2">
+          <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          <span>{syncError}</span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onSync}
+          disabled={syncing}
+          className="flex items-center gap-2 px-4 py-2 bg-foreground text-background text-xs font-medium rounded-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Syncing…" : "Sync Now"}
+        </button>
+        <button
+          type="button"
+          onClick={onDisconnect}
+          disabled={disconnecting}
+          className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground text-xs font-medium rounded-sm hover:text-foreground hover:border-foreground disabled:opacity-50 transition-colors"
+        >
+          <Link2Off className="h-3.5 w-3.5" />
+          {disconnecting ? "Disconnecting…" : "Disconnect"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ConnectForm({
+  keyName,
+  privateKey,
+  onKeyNameChange,
+  onPrivateKeyChange,
+  onSave,
+  saving,
+  error,
+}: {
+  keyName: string;
+  privateKey: string;
+  onKeyNameChange: (v: string) => void;
+  onPrivateKeyChange: (v: string) => void;
+  onSave: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Enter your Coinbase CDP API key credentials to import transaction history. The private key
+        is encrypted at rest and never exposed after saving.
+      </p>
+
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            Key Name
+          </label>
+          <input
+            type="text"
+            value={keyName}
+            onChange={(e) => onKeyNameChange(e.target.value)}
+            placeholder="organizations/xxx/apiKeys/yyy"
+            className="w-full bg-input border border-border rounded-sm px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+            Private Key (PEM)
+          </label>
+          <textarea
+            value={privateKey}
+            onChange={(e) => onPrivateKeyChange(e.target.value)}
+            placeholder={"-----BEGIN EC PRIVATE KEY-----\n…\n-----END EC PRIVATE KEY-----"}
+            rows={6}
+            className="w-full bg-input border border-border rounded-sm px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20 font-mono resize-none"
+          />
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-2 text-xs text-red-400 bg-red-950/30 border border-red-800 rounded-sm px-3 py-2">
+          <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || !keyName.trim() || !privateKey.trim()}
+        className="flex items-center gap-2 px-4 py-2 bg-foreground text-background text-xs font-medium rounded-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
+      >
+        <Link2 className="h-3.5 w-3.5" />
+        {saving ? "Saving…" : "Connect Coinbase"}
+      </button>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">
+        {label}
+      </div>
+      <div className="text-sm text-foreground">{value}</div>
+    </div>
+  );
+}

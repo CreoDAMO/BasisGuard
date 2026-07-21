@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarFooter } from "@/components/ui/sidebar";
-import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors, Layers } from "lucide-react";
+import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors, Layers, Link2 } from "lucide-react";
 import { useCurrentUser, ROLE_LABELS } from "@/hooks/use-current-user";
 
 export function AppSidebar() {
@@ -142,6 +142,14 @@ export function AppSidebar() {
                   <Link href="/transactions" className="flex items-center gap-3 w-full px-4 py-2">
                     <ArrowUpDown className="h-4 w-4" />
                     <span>Ingest</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/connections")}>
+                  <Link href="/connections" className="flex items-center gap-3 w-full px-4 py-2">
+                    <Link2 className="h-4 w-4" />
+                    <span>Connections</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

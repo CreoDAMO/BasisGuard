@@ -26,6 +26,7 @@ import HarvestScannerPage from "./pages/harvest-scanner";
 import ChainsPage from "./pages/chains";
 import SubmissionsPage from "./pages/submissions";
 import LotsPage from "./pages/lots";
+import ConnectionsPage from "./pages/connections";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
@@ -219,6 +220,7 @@ function AppRoutes() {
         <Route path="/lots" component={LotsPage} />
         <Route path="/chains" component={ChainsPage} />
         <Route path="/submissions" component={SubmissionsPage} />
+        <Route path="/connections" component={ConnectionsPage} />
         <Route component={NotFound} />
       </Switch>
     </ProtectedPage>
