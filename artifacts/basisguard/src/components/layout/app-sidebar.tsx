@@ -4,6 +4,7 @@ import { useClerk, useUser } from "@clerk/react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarFooter } from "@/components/ui/sidebar";
 import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors, Layers, Link2 } from "lucide-react";
 import { useCurrentUser, ROLE_LABELS } from "@/hooks/use-current-user";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -168,14 +169,17 @@ export function AppSidebar() {
               {currentUser ? ROLE_LABELS[currentUser.role] : "—"}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => signOut({ redirectUrl: basePath || "/" })}
-            className="flex-shrink-0 p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
-            title="Sign out"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <NotificationBell />
+            <button
+              type="button"
+              onClick={() => signOut({ redirectUrl: basePath || "/" })}
+              className="p-1.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>

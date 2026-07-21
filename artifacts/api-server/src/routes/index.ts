@@ -13,6 +13,9 @@ import intelligenceRouter from "./intelligence";
 import transactionsRouter from "./transactions";
 import lotsRouter from "./lots";
 import coinbaseRouter from "./coinbase";
+import notificationsRouter from "./notifications";
+import exchangesRouter from "./exchanges";
+import metricsRouter from "./metrics";
 
 const router: IRouter = Router();
 
@@ -35,5 +38,8 @@ router.use(submissionsRouter);
 router.use(transactionsRouter);
 router.use(lotsRouter);
 router.use(coinbaseRouter);
+router.use(notificationsRouter);
+router.use(exchangesRouter);
+router.use(metricsRouter);
 
 export default router;

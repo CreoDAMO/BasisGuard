@@ -10,6 +10,8 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { globalLimiter } from "./middlewares/rateLimit.js";
+import { metricsMiddleware } from "./core/metrics.js";
 
 const app: Express = express();
 
@@ -39,6 +41,10 @@ app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting (global) + request metrics
+app.use(globalLimiter);
+app.use(metricsMiddleware);
 
 // Clerk session middleware — resolves auth from cookies on every request
 app.use(

@@ -409,15 +409,33 @@ psql $DATABASE_URL -f scripts/seed-protocols.sql
 
 ---
 
+## What Was Built (Latest Session)
+
+| Feature | Status |
+|---|---|
+| **Notification bell UI** | `artifacts/basisguard/src/components/notifications/notification-bell.tsx` — bell icon in sidebar footer with unread badge, dropdown panel, mark-all-read |
+| **Notification preferences page** | `/notifications/preferences` route — toggle stale/review-queue/sync-error alerts |
+| **Notifications + exchanges routes mounted** | `routes/index.ts` now mounts `notificationsRouter`, `exchangesRouter`, `metricsRouter` |
+| **Rate limiting + metrics middleware** | `globalLimiter` + `metricsMiddleware` wired into `app.ts`; `GET /api/metrics` admin-only |
+| **DB schema pushed** | `notifications`, `notification_preferences`, `exchange_connections` tables created |
+| **Clerk provisioned** | Replit-managed Clerk set up; all auth keys auto-configured |
+
+---
+
 ## What Is Not Yet Built
 
 | Feature | Blocker |
 |---|---|
+| **Coinbase API key entry** | User provides key+secret via UI on the Connections page (`/connections`) — stored encrypted in DB |
+| **Kraken / Gemini live sync testing** | Routes and clients are ready; requires real credentials entered via UI |
+| **FIFO lot matching validation** | `core/lotMatching.ts` is written and wired into `createPosition.ts`; needs real transaction data end-to-end test |
+| **OpenAPI spec for new endpoints** | `/notifications`, `/exchanges`, `/metrics` are implemented but not yet documented in `lib/api-spec/openapi.yaml` |
+| **Cascade protection for citations** | Admin can delete a citation that backs a signed position — `DELETE /api/citations/:id` should block if linked to any signed position |
 | **`/transactions` ingest page** | Frontend page file and App.tsx route were never created; the API (`GET /api/transactions`, `POST /api/transactions/ingest`) exists and works |
 | **Uniswap V3 LP adapters** (Mint, Burn, Collect) | LP deposit/withdrawal treatment is Notice 2024-57 open-gap — adapter is intentionally deferred until guidance issues |
 | **Bridge / staking adapters** | Pending IRS guidance; Notice 2024-57 categories |
 | **`amount_usd` backfill** | Positions created before the column existed have `amount_usd=null`; harvest scanner shows them but cannot sort by dollar value |
-| **Basis step-up simulator** | Requires FMV at date-of-death — needs an external price oracle (Coingecko, Coinmarketcap, or on-chain TWAP) |
+| **Basis step-up simulator** | Requires FMV at date-of-death — needs an external price oracle (CoinGecko, Coinmarketcap, or on-chain TWAP) |
 | **Charitable donation FMV calculator** | Same FMV oracle requirement |
 
 ---

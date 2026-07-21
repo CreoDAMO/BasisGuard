@@ -27,6 +27,7 @@ import ChainsPage from "./pages/chains";
 import SubmissionsPage from "./pages/submissions";
 import LotsPage from "./pages/lots";
 import ConnectionsPage from "./pages/connections";
+import NotificationPreferencesPage from "./pages/notification-preferences";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
@@ -221,6 +222,7 @@ function AppRoutes() {
         <Route path="/chains" component={ChainsPage} />
         <Route path="/submissions" component={SubmissionsPage} />
         <Route path="/connections" component={ConnectionsPage} />
+        <Route path="/notifications/preferences" component={NotificationPreferencesPage} />
         <Route component={NotFound} />
       </Switch>
     </ProtectedPage>
