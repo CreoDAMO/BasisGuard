@@ -157,7 +157,7 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 | Citations | `/citations` | Searchable IRS authority citations |
 | Profiles | `/profiles` | Versioned treatment rule sets + delta report |
 | Audit Export | `/export` | IRS-Ready Dossier, audit package, pattern report, CPA handoff |
-| Harvest Scanner | `/harvest` | Loss harvesting candidates + wash-sale risk flags (30-day window) |
+| Realized-Loss Review | `/harvest` | Realized taxable-disposition losses + wash-sale risk flags (30-day window); not forward-looking unrealized-position analysis |
 | Chain Registry | `/chains` | Supported blockchains and community submissions |
 | Onboarding | `/submissions` | Admin review of chain/protocol submissions |
 
@@ -239,9 +239,11 @@ The server logs `Protocol registry initialized — adapters: 10` on startup when
 
 ---
 
-## Loss Harvesting Scanner
+## Realized-Loss Review (formerly "Harvest Scanner")
 
 `GET /api/positions/harvest-candidates?tax_year=2024&wallet_id=optional`
+
+**Scope:** This is realized-loss aggregation, not forward-looking unrealized-position analysis. It surfaces positions already classified as `taxable_disposition` — disposals that have already occurred — and flags wash-sale risk among them. It does **not** identify which currently-held lots are underwater or worth selling before year-end; that requires the lot-inventory model (current holdings, cost basis, unrealized P&L per wallet) which is not yet implemented.
 
 Returns all `taxable_disposition` positions for the tax year, sorted by `amount_usd` ascending (largest losses first; null last), each annotated with:
 
@@ -251,6 +253,8 @@ Returns all `taxable_disposition` positions for the tax year, sorted by `amount_
 **Note on IRC §1091:** Wash-sale rules apply to stocks and securities. The IRS has not extended them to cryptocurrency. The scanner's flags are conservative practitioner markers — not legal determinations. A disclaimer is embedded in every response.
 
 `amount_usd` is null for positions created before the column was added, or when the adapter/ingest route did not have price data. Populate it via the ingest API to enable dollar-level analysis.
+
+**Next target:** The lot-inventory model — tracking current open positions (cost basis, acquisition date, unrealized gain/loss per wallet) — is the prerequisite for a true forward-looking harvest scanner.
 
 ---
 

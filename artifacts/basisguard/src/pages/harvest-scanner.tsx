@@ -97,10 +97,10 @@ export default function HarvestScannerPage() {
       <div>
         <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-3">
           <Scissors className="h-8 w-8 text-primary" />
-          Loss Harvesting Scanner
+          Realized-Loss Review
         </h1>
         <p className="text-muted-foreground mt-1 text-sm font-mono uppercase tracking-widest">
-          Identify taxable dispositions &amp; wash-sale risk
+          Realized taxable dispositions &amp; wash-sale risk flags
         </p>
       </div>
 
@@ -119,7 +119,9 @@ export default function HarvestScannerPage() {
         <CardHeader className="border-b border-border/50 bg-muted/10 pb-5">
           <CardTitle className="font-serif text-xl">Scan Parameters</CardTitle>
           <CardDescription className="font-serif">
-            Finds all positions classified as taxable dispositions and flags wash-sale pairs within a 30-day window.
+            Finds positions already classified as taxable dispositions — losses that have been realized — and flags
+            wash-sale risk against matching gains within a 30-day window. This is not a forward-looking tool: it does
+            not surface unrealized losses on currently-held positions.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-5">

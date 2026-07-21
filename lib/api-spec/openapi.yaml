@@ -247,9 +247,16 @@ paths:
     get:
       operationId: getHarvestCandidates
       tags: [positions]
-      summary: Identify taxable-disposition positions that may be candidates for tax-loss harvesting
+      summary: Aggregate realized taxable-disposition losses and flag wash-sale risk
       description: >
-        Returns classified positions with wash-sale risk flags based on a 30-day window.
+        Returns positions already classified as taxable_disposition — meaning the disposal
+        has occurred and the loss is realized — grouped with wash-sale risk flags for any
+        matching gain within a 30-day window. This is realized-loss aggregation, not a
+        forward-looking analysis of open or unrealized positions. It does not identify
+        which currently-held lots are underwater or worth selling before year-end; that
+        requires the lot-inventory model (current holdings, basis, unrealized P&L per wallet)
+        which is not yet implemented.
+
         Note: IRC §1091 wash-sale rules apply to stocks and securities; the IRS has not
         officially extended them to cryptocurrency. Flags here are conservative practitioner
         markers, not legal determinations.

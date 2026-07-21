@@ -125,7 +125,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={location.startsWith("/harvest")}>
                   <Link href="/harvest" className="flex items-center gap-3 w-full px-4 py-2">
                     <Scissors className="h-4 w-4" />
-                    <span>Harvest Scanner</span>
+                    <span>Realized-Loss Review</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
