@@ -7,3 +7,4 @@ export * from "./protocols";
 export * from "./submissions";
 export * from "./users";
 export * from "./raw_transactions";
+export * from "./lots";

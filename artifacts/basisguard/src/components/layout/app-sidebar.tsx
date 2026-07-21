@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarFooter } from "@/components/ui/sidebar";
-import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors } from "lucide-react";
+import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors, Layers } from "lucide-react";
 import { useCurrentUser, ROLE_LABELS } from "@/hooks/use-current-user";
 
 export function AppSidebar() {
@@ -118,6 +118,14 @@ export function AppSidebar() {
                   <Link href="/export" className="flex items-center gap-3 w-full px-4 py-2">
                     <Download className="h-4 w-4" />
                     <span>Audit Export</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/lots")}>
+                  <Link href="/lots" className="flex items-center gap-3 w-full px-4 py-2">
+                    <Layers className="h-4 w-4" />
+                    <span>Lot Inventory</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -25,6 +25,7 @@ import ExportPage from "./pages/export";
 import HarvestScannerPage from "./pages/harvest-scanner";
 import ChainsPage from "./pages/chains";
 import SubmissionsPage from "./pages/submissions";
+import LotsPage from "./pages/lots";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
@@ -215,6 +216,7 @@ function AppRoutes() {
         <Route path="/profiles" component={ProfilesPage} />
         <Route path="/export" component={ExportPage} />
         <Route path="/harvest" component={HarvestScannerPage} />
+        <Route path="/lots" component={LotsPage} />
         <Route path="/chains" component={ChainsPage} />
         <Route path="/submissions" component={SubmissionsPage} />
         <Route component={NotFound} />

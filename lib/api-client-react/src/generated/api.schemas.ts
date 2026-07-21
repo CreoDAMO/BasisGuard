@@ -616,6 +616,153 @@ export interface ProtocolSubmissionInput {
   notes?: string;
 }
 
+export interface IrsReadyDossier {
+  generated_at: string;
+  dossier_version: string;
+  tax_year: number;
+  wallet_id?: string | null;
+  disclaimer: string;
+  audit_package: AuditPackage;
+  pattern_report: PatternReport;
+  comment_letter: CommentLetter;
+  cpa_handoff: CpaHandoff;
+}
+
+export interface WashSalePair {
+  loss_position_id: string;
+  gain_position_id: string;
+  days_between: number;
+}
+
+export interface HarvestCandidate {
+  position_id: string;
+  wallet_id?: string | null;
+  event_type: string;
+  classification: string;
+  tier: string;
+  tx_date?: string | null;
+  /** Realized gain (positive) or loss (negative) in USD; null if unknown */
+  amount_usd?: number | null;
+  requires_review: boolean;
+  reviewer_signoff_at?: string | null;
+  wash_sale_risk: boolean;
+  wash_sale_pairs: WashSalePair[];
+}
+
+export interface HarvestCandidates {
+  generated_at: string;
+  tax_year?: number | null;
+  wallet_id?: string | null;
+  total_candidates: number;
+  wash_sale_risk_count: number;
+  disclaimer: string;
+  candidates: HarvestCandidate[];
+}
+
+export type LotStatus = typeof LotStatus[keyof typeof LotStatus];
+
+
+export const LotStatus = {
+  open: 'open',
+  closed: 'closed',
+  partial: 'partial',
+} as const;
+
+/**
+ * short_term ≤ 365 days, long_term > 365 days
+ */
+export type LotHoldingPeriodType = typeof LotHoldingPeriodType[keyof typeof LotHoldingPeriodType];
+
+
+export const LotHoldingPeriodType = {
+  short_term: 'short_term',
+  long_term: 'long_term',
+} as const;
+
+export interface Lot {
+  id: string;
+  position_record_id?: string | null;
+  wallet_id: string;
+  asset_symbol: string;
+  asset_identifier?: string | null;
+  chain_id?: string | null;
+  quantity: number;
+  cost_basis_usd?: number | null;
+  cost_basis_per_unit_usd?: number | null;
+  acquisition_date: string;
+  acquisition_tx_id?: string | null;
+  disposal_position_id?: string | null;
+  disposal_date?: string | null;
+  disposal_proceeds_usd?: number | null;
+  realized_gain_loss_usd?: number | null;
+  status: LotStatus;
+  notes?: string | null;
+  created_at: string;
+  /** Days since acquisition (to today for open lots, to disposal date for closed) */
+  holding_days: number;
+  /** short_term ≤ 365 days, long_term > 365 days */
+  holding_period_type: LotHoldingPeriodType;
+  /** Always null — price oracle not yet implemented */
+  unrealized_gain_loss_usd?: number | null;
+}
+
+export interface LotSummaryByAsset {
+  asset_symbol: string;
+  open_lot_count: number;
+  total_quantity: number;
+  total_cost_basis_usd?: number | null;
+  short_term_lots: number;
+  long_term_lots: number;
+}
+
+export interface LotSummary {
+  generated_at: string;
+  wallet_id?: string | null;
+  open_lot_count: number;
+  closed_lot_count: number;
+  total_lot_count: number;
+  total_cost_basis_usd?: number | null;
+  short_term_lots: number;
+  long_term_lots: number;
+  /** Always null — price oracle not yet implemented */
+  unrealized_gain_loss_usd?: number | null;
+  by_asset: LotSummaryByAsset[];
+}
+
+export interface CreateLotRequest {
+  wallet_id: string;
+  asset_symbol: string;
+  asset_identifier?: string;
+  chain_id?: string;
+  quantity: number;
+  cost_basis_usd?: number;
+  cost_basis_per_unit_usd?: number;
+  acquisition_date: string;
+  acquisition_tx_id?: string;
+  position_record_id?: string;
+  notes?: string;
+}
+
+export type PatchLotRequestStatus = typeof PatchLotRequestStatus[keyof typeof PatchLotRequestStatus];
+
+
+export const PatchLotRequestStatus = {
+  open: 'open',
+  closed: 'closed',
+  partial: 'partial',
+} as const;
+
+export interface PatchLotRequest {
+  status?: PatchLotRequestStatus;
+  quantity?: number;
+  cost_basis_usd?: number | null;
+  disposal_position_id?: string | null;
+  disposal_date?: string | null;
+  disposal_proceeds_usd?: number | null;
+  realized_gain_loss_usd?: number | null;
+  notes?: string | null;
+}
+
 export type GetRecentActivityParams = {
 limit?: number;
 };
@@ -659,6 +806,11 @@ export const ListPositionsTier = {
 export type GetTierSuggestionParams = {
 event_type: string;
 citation_ids?: string[];
+};
+
+export type GetHarvestCandidatesParams = {
+tax_year?: number;
+wallet_id?: string;
 };
 
 export type ListCitationsParams = {
@@ -730,5 +882,40 @@ export const ListSubmissionsStatus = {
 
 export type GetCpaHandoffParams = {
 tax_year: number;
+};
+
+export type GetDossierParams = {
+tax_year: number;
+wallet_id?: string;
+redact_pii?: boolean;
+};
+
+export type ListLotsParams = {
+wallet_id?: string;
+asset_symbol?: string;
+status?: ListLotsStatus;
+chain_id?: string;
+limit?: number;
+offset?: number;
+};
+
+export type ListLotsStatus = typeof ListLotsStatus[keyof typeof ListLotsStatus];
+
+
+export const ListLotsStatus = {
+  open: 'open',
+  closed: 'closed',
+  partial: 'partial',
+} as const;
+
+export type ListLots200 = {
+  items: Lot[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type GetLotSummaryParams = {
+wallet_id?: string;
 };
 

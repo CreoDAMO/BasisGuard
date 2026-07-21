@@ -32,20 +32,31 @@ import type {
   CitationUpdate,
   CommentLetter,
   CpaHandoff,
+  CreateLotRequest,
   DashboardSummary,
   ErrorResponse,
   GetAuditPackageParams,
   GetCpaHandoffParams,
+  GetDossierParams,
+  GetHarvestCandidatesParams,
   GetIntelligenceSuggestionParams,
+  GetLotSummaryParams,
   GetRecentActivityParams,
   GetTierSuggestionParams,
+  HarvestCandidates,
   HealthStatus,
   IntelligenceSuggestion,
+  IrsReadyDossier,
   ListCitationsParams,
+  ListLots200,
+  ListLotsParams,
   ListPositionsParams,
   ListProfilesParams,
   ListProtocolsParams,
   ListSubmissionsParams,
+  Lot,
+  LotSummary,
+  PatchLotRequest,
   PatternReport,
   PositionDetail,
   PositionHistory,
@@ -877,6 +888,92 @@ export function useGetTierSuggestion<TData = Awaited<ReturnType<typeof getTierSu
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTierSuggestionQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetHarvestCandidatesUrl = (params?: GetHarvestCandidatesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/positions/harvest-candidates?${stringifiedParams}` : `/api/positions/harvest-candidates`
+}
+
+/**
+ * Returns positions already classified as taxable_disposition — meaning the disposal has occurred and the loss is realized — grouped with wash-sale risk flags for any matching gain within a 30-day window. This is realized-loss aggregation, not a forward-looking analysis of open or unrealized positions. It does not identify which currently-held lots are underwater or worth selling before year-end; that requires the lot-inventory model (current holdings, basis, unrealized P&L per wallet) which is not yet implemented.
+ * Note: IRC §1091 wash-sale rules apply to stocks and securities; the IRS has not officially extended them to cryptocurrency. Flags here are conservative practitioner markers, not legal determinations.
+ * @summary Aggregate realized taxable-disposition losses and flag wash-sale risk
+ */
+export const getHarvestCandidates = async (params?: GetHarvestCandidatesParams, options?: RequestInit): Promise<HarvestCandidates> => {
+
+  return customFetch<HarvestCandidates>(getGetHarvestCandidatesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHarvestCandidatesQueryKey = (params?: GetHarvestCandidatesParams,) => {
+    return [
+    `/api/positions/harvest-candidates`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetHarvestCandidatesQueryOptions = <TData = Awaited<ReturnType<typeof getHarvestCandidates>>, TError = ErrorType<unknown>>(params?: GetHarvestCandidatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHarvestCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHarvestCandidatesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHarvestCandidates>>> = ({ signal }) => getHarvestCandidates(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHarvestCandidates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHarvestCandidatesQueryResult = NonNullable<Awaited<ReturnType<typeof getHarvestCandidates>>>
+export type GetHarvestCandidatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Aggregate realized taxable-disposition losses and flag wash-sale risk
+ */
+
+export function useGetHarvestCandidates<TData = Awaited<ReturnType<typeof getHarvestCandidates>>, TError = ErrorType<unknown>>(
+ params?: GetHarvestCandidatesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHarvestCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHarvestCandidatesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -3307,4 +3404,481 @@ export function useGetCpaHandoff<TData = Awaited<ReturnType<typeof getCpaHandoff
 
 
 
+
+export const getGetDossierUrl = (params: GetDossierParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/export/dossier?${stringifiedParams}` : `/api/export/dossier`
+}
+
+/**
+ * Runs audit-package, pattern-report, comment-letter, and cpa-handoff in parallel and returns them as a single envelope. Latency is bounded by the slowest query.
+ * @summary One-click IRS-ready dossier combining all four export views for a tax year
+ */
+export const getDossier = async (params: GetDossierParams, options?: RequestInit): Promise<IrsReadyDossier> => {
+
+  return customFetch<IrsReadyDossier>(getGetDossierUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDossierQueryKey = (params?: GetDossierParams,) => {
+    return [
+    `/api/export/dossier`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDossierQueryOptions = <TData = Awaited<ReturnType<typeof getDossier>>, TError = ErrorType<unknown>>(params: GetDossierParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDossier>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDossierQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDossier>>> = ({ signal }) => getDossier(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDossier>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDossierQueryResult = NonNullable<Awaited<ReturnType<typeof getDossier>>>
+export type GetDossierQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary One-click IRS-ready dossier combining all four export views for a tax year
+ */
+
+export function useGetDossier<TData = Awaited<ReturnType<typeof getDossier>>, TError = ErrorType<unknown>>(
+ params: GetDossierParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDossier>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDossierQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListLotsUrl = (params?: ListLotsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lots?${stringifiedParams}` : `/api/lots`
+}
+
+/**
+ * Returns tax lots (acquisition records) with computed holding_days and holding_period_type. unrealized_gain_loss_usd is always null until a price oracle is wired; cost basis and holding period are always available.
+ * @summary List tax lots
+ */
+export const listLots = async (params?: ListLotsParams, options?: RequestInit): Promise<ListLots200> => {
+
+  return customFetch<ListLots200>(getListLotsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLotsQueryKey = (params?: ListLotsParams,) => {
+    return [
+    `/api/lots`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListLotsQueryOptions = <TData = Awaited<ReturnType<typeof listLots>>, TError = ErrorType<unknown>>(params?: ListLotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLotsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLots>>> = ({ signal }) => listLots(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLots>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLotsQueryResult = NonNullable<Awaited<ReturnType<typeof listLots>>>
+export type ListLotsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List tax lots
+ */
+
+export function useListLots<TData = Awaited<ReturnType<typeof listLots>>, TError = ErrorType<unknown>>(
+ params?: ListLotsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLots>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLotsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLotUrl = () => {
+
+
+
+
+  return `/api/lots`
+}
+
+/**
+ * Manually record an acquisition. Provide either cost_basis_usd (total) or cost_basis_per_unit_usd; the other is derived automatically.
+ * @summary Create a tax lot
+ */
+export const createLot = async (createLotRequest: CreateLotRequest, options?: RequestInit): Promise<Lot> => {
+
+  return customFetch<Lot>(getCreateLotUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createLotRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateLotMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLot>>, TError,{data: BodyType<CreateLotRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLot>>, TError,{data: BodyType<CreateLotRequest>}, TContext> => {
+
+const mutationKey = ['createLot'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLot>>, {data: BodyType<CreateLotRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLot(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLotMutationResult = NonNullable<Awaited<ReturnType<typeof createLot>>>
+    export type CreateLotMutationBody = BodyType<CreateLotRequest>
+    export type CreateLotMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a tax lot
+ */
+export const useCreateLot = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLot>>, TError,{data: BodyType<CreateLotRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLot>>,
+        TError,
+        {data: BodyType<CreateLotRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateLotMutationOptions(options));
+    }
+
+export const getGetLotSummaryUrl = (params?: GetLotSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/lots/summary?${stringifiedParams}` : `/api/lots/summary`
+}
+
+/**
+ * Returns open-lot counts, total cost basis, short/long-term breakdown, and a per-asset breakdown. unrealized_gain_loss_usd is null (price oracle not yet implemented). Filter to a single wallet with wallet_id.
+ * @summary Aggregate lot inventory by wallet and asset
+ */
+export const getLotSummary = async (params?: GetLotSummaryParams, options?: RequestInit): Promise<LotSummary> => {
+
+  return customFetch<LotSummary>(getGetLotSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLotSummaryQueryKey = (params?: GetLotSummaryParams,) => {
+    return [
+    `/api/lots/summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLotSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getLotSummary>>, TError = ErrorType<unknown>>(params?: GetLotSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLotSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLotSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLotSummary>>> = ({ signal }) => getLotSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLotSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLotSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getLotSummary>>>
+export type GetLotSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Aggregate lot inventory by wallet and asset
+ */
+
+export function useGetLotSummary<TData = Awaited<ReturnType<typeof getLotSummary>>, TError = ErrorType<unknown>>(
+ params?: GetLotSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLotSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLotSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetLotUrl = (id: string,) => {
+
+
+
+
+  return `/api/lots/${id}`
+}
+
+/**
+ * @summary Get a tax lot by ID
+ */
+export const getLot = async (id: string, options?: RequestInit): Promise<Lot> => {
+
+  return customFetch<Lot>(getGetLotUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLotQueryKey = (id: string,) => {
+    return [
+    `/api/lots/${id}`
+    ] as const;
+    }
+
+
+export const getGetLotQueryOptions = <TData = Awaited<ReturnType<typeof getLot>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLot>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLotQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLot>>> = ({ signal }) => getLot(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLot>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLotQueryResult = NonNullable<Awaited<ReturnType<typeof getLot>>>
+export type GetLotQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a tax lot by ID
+ */
+
+export function useGetLot<TData = Awaited<ReturnType<typeof getLot>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLot>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLotQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPatchLotUrl = (id: string,) => {
+
+
+
+
+  return `/api/lots/${id}`
+}
+
+/**
+ * Close a lot, record a partial disposal, or add notes.
+ * @summary Update a tax lot
+ */
+export const patchLot = async (id: string,
+    patchLotRequest: PatchLotRequest, options?: RequestInit): Promise<Lot> => {
+
+  return customFetch<Lot>(getPatchLotUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(patchLotRequest)
+  }
+);}
+
+
+
+
+
+export const getPatchLotMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchLot>>, TError,{id: string;data: BodyType<PatchLotRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchLot>>, TError,{id: string;data: BodyType<PatchLotRequest>}, TContext> => {
+
+const mutationKey = ['patchLot'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchLot>>, {id: string;data: BodyType<PatchLotRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  patchLot(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchLotMutationResult = NonNullable<Awaited<ReturnType<typeof patchLot>>>
+    export type PatchLotMutationBody = BodyType<PatchLotRequest>
+    export type PatchLotMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a tax lot
+ */
+export const usePatchLot = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchLot>>, TError,{id: string;data: BodyType<PatchLotRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchLot>>,
+        TError,
+        {id: string;data: BodyType<PatchLotRequest>},
+        TContext
+      > => {
+      return useMutation(getPatchLotMutationOptions(options));
+    }
 

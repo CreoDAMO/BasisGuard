@@ -266,6 +266,43 @@ export const GetTierSuggestionResponse = zod.object({
 
 
 /**
+ * Returns positions already classified as taxable_disposition — meaning the disposal has occurred and the loss is realized — grouped with wash-sale risk flags for any matching gain within a 30-day window. This is realized-loss aggregation, not a forward-looking analysis of open or unrealized positions. It does not identify which currently-held lots are underwater or worth selling before year-end; that requires the lot-inventory model (current holdings, basis, unrealized P&L per wallet) which is not yet implemented.
+ * Note: IRC §1091 wash-sale rules apply to stocks and securities; the IRS has not officially extended them to cryptocurrency. Flags here are conservative practitioner markers, not legal determinations.
+ * @summary Aggregate realized taxable-disposition losses and flag wash-sale risk
+ */
+export const GetHarvestCandidatesQueryParams = zod.object({
+  "tax_year": zod.coerce.number().optional(),
+  "wallet_id": zod.coerce.string().optional()
+})
+
+export const GetHarvestCandidatesResponse = zod.object({
+  "generated_at": zod.string(),
+  "tax_year": zod.number().nullish(),
+  "wallet_id": zod.string().nullish(),
+  "total_candidates": zod.number(),
+  "wash_sale_risk_count": zod.number(),
+  "disclaimer": zod.string(),
+  "candidates": zod.array(zod.object({
+  "position_id": zod.string(),
+  "wallet_id": zod.string().nullish(),
+  "event_type": zod.string(),
+  "classification": zod.string(),
+  "tier": zod.string(),
+  "tx_date": zod.string().nullish(),
+  "amount_usd": zod.number().nullish().describe('Realized gain (positive) or loss (negative) in USD; null if unknown'),
+  "requires_review": zod.boolean(),
+  "reviewer_signoff_at": zod.string().nullish(),
+  "wash_sale_risk": zod.boolean(),
+  "wash_sale_pairs": zod.array(zod.object({
+  "loss_position_id": zod.string(),
+  "gain_position_id": zod.string(),
+  "days_between": zod.number()
+}))
+}))
+})
+
+
+/**
  * @summary Get a position record by ID
  */
 export const GetPositionParams = zod.object({
@@ -1180,6 +1217,352 @@ export const GetCpaHandoffResponse = zod.object({
 }).optional()
 }))),
   "preparer_checklist": zod.array(zod.string())
+})
+
+
+/**
+ * Runs audit-package, pattern-report, comment-letter, and cpa-handoff in parallel and returns them as a single envelope. Latency is bounded by the slowest query.
+ * @summary One-click IRS-ready dossier combining all four export views for a tax year
+ */
+export const getDossierQueryRedactPiiDefault = false;
+
+export const GetDossierQueryParams = zod.object({
+  "tax_year": zod.coerce.number(),
+  "wallet_id": zod.coerce.string().optional(),
+  "redact_pii": zod.coerce.boolean().default(getDossierQueryRedactPiiDefault)
+})
+
+export const GetDossierResponse = zod.object({
+  "generated_at": zod.string(),
+  "dossier_version": zod.string(),
+  "tax_year": zod.number(),
+  "wallet_id": zod.string().nullish(),
+  "disclaimer": zod.string(),
+  "audit_package": zod.object({
+  "tax_year": zod.number(),
+  "wallet_id": zod.string().nullish(),
+  "generated_at": zod.string(),
+  "positions": zod.array(zod.object({
+  "id": zod.string(),
+  "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
+  "wallet_id": zod.string().nullish(),
+  "event_type": zod.string(),
+  "classification": zod.string(),
+  "tier": zod.enum(['will', 'should', 'more_likely_than_not', 'substantial_authority', 'reasonable_basis']),
+  "rationale": zod.string(),
+  "profile_id": zod.string().nullish(),
+  "profile_version": zod.string().nullish(),
+  "requires_review": zod.boolean(),
+  "reviewer_id": zod.string().nullish(),
+  "reviewer_name": zod.string().nullish(),
+  "reviewer_credential": zod.string().nullish(),
+  "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
+  "superseded_by": zod.string().nullish(),
+  "created_at": zod.string(),
+  "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
+}).and(zod.object({
+  "citations": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['Notice', 'Rev_Proc', 'Rev_Rul', 'Treasury_Decision', 'Case', 'Statute']),
+  "reference": zod.string(),
+  "summary": zod.string(),
+  "url": zod.string().nullish(),
+  "authority_strength": zod.enum(['binding_on_courts', 'binding_on_irs_only', 'non_binding_persuasive']),
+  "created_at": zod.string()
+})),
+  "profile": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'deprecated', 'opt_in_only']),
+  "rules": zod.array(zod.object({
+  "event_type": zod.string(),
+  "classification": zod.string(),
+  "tier": zod.enum(['will', 'should', 'more_likely_than_not', 'substantial_authority', 'reasonable_basis']),
+  "citation_ids": zod.array(zod.string())
+})),
+  "changelog": zod.string().nullish(),
+  "created_at": zod.string()
+}).optional()
+}))),
+  "total_positions": zod.number(),
+  "requires_review_count": zod.number()
+}),
+  "pattern_report": zod.object({
+  "generated_at": zod.string(),
+  "total_positions": zod.number(),
+  "entries": zod.array(zod.object({
+  "event_type": zod.string(),
+  "count": zod.number(),
+  "tier_distribution": zod.record(zod.string(), zod.number()),
+  "open_gap": zod.boolean()
+}))
+}),
+  "comment_letter": zod.object({
+  "generated_at": zod.string(),
+  "total_open_gap_positions": zod.number(),
+  "entries": zod.array(zod.object({
+  "event_type": zod.string(),
+  "position_count": zod.number(),
+  "tier_distribution": zod.record(zod.string(), zod.number()),
+  "guidance_gap": zod.boolean(),
+  "pending_irs_notices": zod.array(zod.string()),
+  "practitioner_summary": zod.string().describe('Plain-English summary of the open guidance issue')
+})),
+  "disclaimer": zod.string()
+}),
+  "cpa_handoff": zod.object({
+  "generated_at": zod.string(),
+  "summary": zod.object({
+  "tax_year": zod.number(),
+  "total_positions": zod.number(),
+  "signed_off": zod.number(),
+  "pending_signoff": zod.number(),
+  "stale_reasonable_basis": zod.number(),
+  "tier_breakdown": zod.record(zod.string(), zod.number()),
+  "open_action_items": zod.array(zod.string())
+}),
+  "positions": zod.array(zod.object({
+  "id": zod.string(),
+  "tx_id": zod.string().nullish(),
+  "tx_date": zod.coerce.date().nullish().describe('Actual date of the underlying transaction (used for tax-year bucketing). Falls back to created_at when absent.'),
+  "wallet_id": zod.string().nullish(),
+  "event_type": zod.string(),
+  "classification": zod.string(),
+  "tier": zod.enum(['will', 'should', 'more_likely_than_not', 'substantial_authority', 'reasonable_basis']),
+  "rationale": zod.string(),
+  "profile_id": zod.string().nullish(),
+  "profile_version": zod.string().nullish(),
+  "requires_review": zod.boolean(),
+  "reviewer_id": zod.string().nullish(),
+  "reviewer_name": zod.string().nullish(),
+  "reviewer_credential": zod.string().nullish(),
+  "reviewer_signoff_at": zod.string().nullish(),
+  "chain_id": zod.string().nullish().describe('Chain this position is associated with, if known'),
+  "superseded_by": zod.string().nullish(),
+  "created_at": zod.string(),
+  "is_stale": zod.boolean().describe('True when a Reasonable Basis position is older than 180 days and has not been superseded')
+}).and(zod.object({
+  "citations": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['Notice', 'Rev_Proc', 'Rev_Rul', 'Treasury_Decision', 'Case', 'Statute']),
+  "reference": zod.string(),
+  "summary": zod.string(),
+  "url": zod.string().nullish(),
+  "authority_strength": zod.enum(['binding_on_courts', 'binding_on_irs_only', 'non_binding_persuasive']),
+  "created_at": zod.string()
+})),
+  "profile": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['active', 'deprecated', 'opt_in_only']),
+  "rules": zod.array(zod.object({
+  "event_type": zod.string(),
+  "classification": zod.string(),
+  "tier": zod.enum(['will', 'should', 'more_likely_than_not', 'substantial_authority', 'reasonable_basis']),
+  "citation_ids": zod.array(zod.string())
+})),
+  "changelog": zod.string().nullish(),
+  "created_at": zod.string()
+}).optional()
+}))),
+  "preparer_checklist": zod.array(zod.string())
+})
+})
+
+
+/**
+ * Returns tax lots (acquisition records) with computed holding_days and holding_period_type. unrealized_gain_loss_usd is always null until a price oracle is wired; cost basis and holding period are always available.
+ * @summary List tax lots
+ */
+export const listLotsQueryLimitDefault = 50;
+export const listLotsQueryOffsetDefault = 0;
+
+export const ListLotsQueryParams = zod.object({
+  "wallet_id": zod.coerce.string().optional(),
+  "asset_symbol": zod.coerce.string().optional(),
+  "status": zod.enum(['open', 'closed', 'partial']).optional(),
+  "chain_id": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().default(listLotsQueryLimitDefault),
+  "offset": zod.coerce.number().default(listLotsQueryOffsetDefault)
+})
+
+export const ListLotsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "position_record_id": zod.uuid().nullish(),
+  "wallet_id": zod.string(),
+  "asset_symbol": zod.string(),
+  "asset_identifier": zod.string().nullish(),
+  "chain_id": zod.uuid().nullish(),
+  "quantity": zod.number(),
+  "cost_basis_usd": zod.number().nullish(),
+  "cost_basis_per_unit_usd": zod.number().nullish(),
+  "acquisition_date": zod.string(),
+  "acquisition_tx_id": zod.string().nullish(),
+  "disposal_position_id": zod.uuid().nullish(),
+  "disposal_date": zod.string().nullish(),
+  "disposal_proceeds_usd": zod.number().nullish(),
+  "realized_gain_loss_usd": zod.number().nullish(),
+  "status": zod.enum(['open', 'closed', 'partial']),
+  "notes": zod.string().nullish(),
+  "created_at": zod.string(),
+  "holding_days": zod.number().describe('Days since acquisition (to today for open lots, to disposal date for closed)'),
+  "holding_period_type": zod.enum(['short_term', 'long_term']).describe('short_term ≤ 365 days, long_term > 365 days'),
+  "unrealized_gain_loss_usd": zod.number().nullish().describe('Always null — price oracle not yet implemented')
+})),
+  "total": zod.number(),
+  "limit": zod.number(),
+  "offset": zod.number()
+})
+
+
+/**
+ * Manually record an acquisition. Provide either cost_basis_usd (total) or cost_basis_per_unit_usd; the other is derived automatically.
+ * @summary Create a tax lot
+ */
+export const CreateLotBody = zod.object({
+  "wallet_id": zod.string(),
+  "asset_symbol": zod.string(),
+  "asset_identifier": zod.string().optional(),
+  "chain_id": zod.uuid().optional(),
+  "quantity": zod.number(),
+  "cost_basis_usd": zod.number().optional(),
+  "cost_basis_per_unit_usd": zod.number().optional(),
+  "acquisition_date": zod.coerce.date(),
+  "acquisition_tx_id": zod.string().optional(),
+  "position_record_id": zod.uuid().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateLotResponse = zod.object({
+  "id": zod.uuid(),
+  "position_record_id": zod.uuid().nullish(),
+  "wallet_id": zod.string(),
+  "asset_symbol": zod.string(),
+  "asset_identifier": zod.string().nullish(),
+  "chain_id": zod.uuid().nullish(),
+  "quantity": zod.number(),
+  "cost_basis_usd": zod.number().nullish(),
+  "cost_basis_per_unit_usd": zod.number().nullish(),
+  "acquisition_date": zod.string(),
+  "acquisition_tx_id": zod.string().nullish(),
+  "disposal_position_id": zod.uuid().nullish(),
+  "disposal_date": zod.string().nullish(),
+  "disposal_proceeds_usd": zod.number().nullish(),
+  "realized_gain_loss_usd": zod.number().nullish(),
+  "status": zod.enum(['open', 'closed', 'partial']),
+  "notes": zod.string().nullish(),
+  "created_at": zod.string(),
+  "holding_days": zod.number().describe('Days since acquisition (to today for open lots, to disposal date for closed)'),
+  "holding_period_type": zod.enum(['short_term', 'long_term']).describe('short_term ≤ 365 days, long_term > 365 days'),
+  "unrealized_gain_loss_usd": zod.number().nullish().describe('Always null — price oracle not yet implemented')
+})
+
+
+/**
+ * Returns open-lot counts, total cost basis, short/long-term breakdown, and a per-asset breakdown. unrealized_gain_loss_usd is null (price oracle not yet implemented). Filter to a single wallet with wallet_id.
+ * @summary Aggregate lot inventory by wallet and asset
+ */
+export const GetLotSummaryQueryParams = zod.object({
+  "wallet_id": zod.coerce.string().optional()
+})
+
+export const GetLotSummaryResponse = zod.object({
+  "generated_at": zod.string(),
+  "wallet_id": zod.string().nullish(),
+  "open_lot_count": zod.number(),
+  "closed_lot_count": zod.number(),
+  "total_lot_count": zod.number(),
+  "total_cost_basis_usd": zod.number().nullish(),
+  "short_term_lots": zod.number(),
+  "long_term_lots": zod.number(),
+  "unrealized_gain_loss_usd": zod.number().nullish().describe('Always null — price oracle not yet implemented'),
+  "by_asset": zod.array(zod.object({
+  "asset_symbol": zod.string(),
+  "open_lot_count": zod.number(),
+  "total_quantity": zod.number(),
+  "total_cost_basis_usd": zod.number().nullish(),
+  "short_term_lots": zod.number(),
+  "long_term_lots": zod.number()
+}))
+})
+
+
+/**
+ * @summary Get a tax lot by ID
+ */
+export const GetLotParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetLotResponse = zod.object({
+  "id": zod.uuid(),
+  "position_record_id": zod.uuid().nullish(),
+  "wallet_id": zod.string(),
+  "asset_symbol": zod.string(),
+  "asset_identifier": zod.string().nullish(),
+  "chain_id": zod.uuid().nullish(),
+  "quantity": zod.number(),
+  "cost_basis_usd": zod.number().nullish(),
+  "cost_basis_per_unit_usd": zod.number().nullish(),
+  "acquisition_date": zod.string(),
+  "acquisition_tx_id": zod.string().nullish(),
+  "disposal_position_id": zod.uuid().nullish(),
+  "disposal_date": zod.string().nullish(),
+  "disposal_proceeds_usd": zod.number().nullish(),
+  "realized_gain_loss_usd": zod.number().nullish(),
+  "status": zod.enum(['open', 'closed', 'partial']),
+  "notes": zod.string().nullish(),
+  "created_at": zod.string(),
+  "holding_days": zod.number().describe('Days since acquisition (to today for open lots, to disposal date for closed)'),
+  "holding_period_type": zod.enum(['short_term', 'long_term']).describe('short_term ≤ 365 days, long_term > 365 days'),
+  "unrealized_gain_loss_usd": zod.number().nullish().describe('Always null — price oracle not yet implemented')
+})
+
+
+/**
+ * Close a lot, record a partial disposal, or add notes.
+ * @summary Update a tax lot
+ */
+export const PatchLotParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const PatchLotBody = zod.object({
+  "status": zod.enum(['open', 'closed', 'partial']).optional(),
+  "quantity": zod.number().optional(),
+  "cost_basis_usd": zod.number().nullish(),
+  "disposal_position_id": zod.uuid().nullish(),
+  "disposal_date": zod.coerce.date().nullish(),
+  "disposal_proceeds_usd": zod.number().nullish(),
+  "realized_gain_loss_usd": zod.number().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const PatchLotResponse = zod.object({
+  "id": zod.uuid(),
+  "position_record_id": zod.uuid().nullish(),
+  "wallet_id": zod.string(),
+  "asset_symbol": zod.string(),
+  "asset_identifier": zod.string().nullish(),
+  "chain_id": zod.uuid().nullish(),
+  "quantity": zod.number(),
+  "cost_basis_usd": zod.number().nullish(),
+  "cost_basis_per_unit_usd": zod.number().nullish(),
+  "acquisition_date": zod.string(),
+  "acquisition_tx_id": zod.string().nullish(),
+  "disposal_position_id": zod.uuid().nullish(),
+  "disposal_date": zod.string().nullish(),
+  "disposal_proceeds_usd": zod.number().nullish(),
+  "realized_gain_loss_usd": zod.number().nullish(),
+  "status": zod.enum(['open', 'closed', 'partial']),
+  "notes": zod.string().nullish(),
+  "created_at": zod.string(),
+  "holding_days": zod.number().describe('Days since acquisition (to today for open lots, to disposal date for closed)'),
+  "holding_period_type": zod.enum(['short_term', 'long_term']).describe('short_term ≤ 365 days, long_term > 365 days'),
+  "unrealized_gain_loss_usd": zod.number().nullish().describe('Always null — price oracle not yet implemented')
 })
 
 

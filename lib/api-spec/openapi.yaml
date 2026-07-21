@@ -26,6 +26,8 @@ tags:
     description: Self-service chain/protocol onboarding submissions
   - name: intelligence
     description: Tier suggestion engine and stale position detection
+  - name: lots
+    description: Lot inventory — open positions, cost basis, and holding-period tracking
 
 paths:
   /healthz:
@@ -1001,6 +1003,154 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/IrsReadyDossier"
+
+  # ── Lot Inventory ─────────────────────────────────────────────────────────
+
+  /lots:
+    get:
+      operationId: listLots
+      tags: [lots]
+      summary: List tax lots
+      description: >
+        Returns tax lots (acquisition records) with computed holding_days and
+        holding_period_type. unrealized_gain_loss_usd is always null until a
+        price oracle is wired; cost basis and holding period are always available.
+      parameters:
+        - name: wallet_id
+          in: query
+          schema:
+            type: string
+        - name: asset_symbol
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, partial]
+        - name: chain_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated lot list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Lot"
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+                required: [items, total, limit, offset]
+    post:
+      operationId: createLot
+      tags: [lots]
+      summary: Create a tax lot
+      description: >
+        Manually record an acquisition. Provide either cost_basis_usd (total)
+        or cost_basis_per_unit_usd; the other is derived automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLotRequest"
+      responses:
+        "201":
+          description: Created lot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lot"
+
+  /lots/summary:
+    get:
+      operationId: getLotSummary
+      tags: [lots]
+      summary: Aggregate lot inventory by wallet and asset
+      description: >
+        Returns open-lot counts, total cost basis, short/long-term breakdown,
+        and a per-asset breakdown. unrealized_gain_loss_usd is null (price oracle
+        not yet implemented). Filter to a single wallet with wallet_id.
+      parameters:
+        - name: wallet_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lot inventory summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotSummary"
+
+  /lots/{id}:
+    get:
+      operationId: getLot
+      tags: [lots]
+      summary: Get a tax lot by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tax lot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lot"
+        "404":
+          description: Not found
+    patch:
+      operationId: patchLot
+      tags: [lots]
+      summary: Update a tax lot
+      description: Close a lot, record a partial disposal, or add notes.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchLotRequest"
+      responses:
+        "200":
+          description: Updated lot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lot"
+        "404":
+          description: Not found
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 components:
@@ -2089,3 +2239,199 @@ components:
         - wash_sale_risk_count
         - disclaimer
         - candidates
+
+    # ── Lot Inventory ──────────────────────────────────────────────────────────
+
+    Lot:
+      type: object
+      properties:
+        id:
+          type: string
+        position_record_id:
+          type: string
+          nullable: true
+        wallet_id:
+          type: string
+        asset_symbol:
+          type: string
+        asset_identifier:
+          type: string
+          nullable: true
+        chain_id:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+        cost_basis_usd:
+          type: number
+          nullable: true
+        cost_basis_per_unit_usd:
+          type: number
+          nullable: true
+        acquisition_date:
+          type: string
+        acquisition_tx_id:
+          type: string
+          nullable: true
+        disposal_position_id:
+          type: string
+          nullable: true
+        disposal_date:
+          type: string
+          nullable: true
+        disposal_proceeds_usd:
+          type: number
+          nullable: true
+        realized_gain_loss_usd:
+          type: number
+          nullable: true
+        status:
+          type: string
+          enum: [open, closed, partial]
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+        holding_days:
+          type: integer
+          description: Days since acquisition (to today for open lots, to disposal date for closed)
+        holding_period_type:
+          type: string
+          enum: [short_term, long_term]
+          description: short_term ≤ 365 days, long_term > 365 days
+        unrealized_gain_loss_usd:
+          type: number
+          nullable: true
+          description: Always null — price oracle not yet implemented
+      required:
+        - id
+        - wallet_id
+        - asset_symbol
+        - quantity
+        - acquisition_date
+        - status
+        - created_at
+        - holding_days
+        - holding_period_type
+
+    LotSummaryByAsset:
+      type: object
+      properties:
+        asset_symbol:
+          type: string
+        open_lot_count:
+          type: integer
+        total_quantity:
+          type: number
+        total_cost_basis_usd:
+          type: number
+          nullable: true
+        short_term_lots:
+          type: integer
+        long_term_lots:
+          type: integer
+      required:
+        - asset_symbol
+        - open_lot_count
+        - total_quantity
+        - short_term_lots
+        - long_term_lots
+
+    LotSummary:
+      type: object
+      properties:
+        generated_at:
+          type: string
+        wallet_id:
+          type: string
+          nullable: true
+        open_lot_count:
+          type: integer
+        closed_lot_count:
+          type: integer
+        total_lot_count:
+          type: integer
+        total_cost_basis_usd:
+          type: number
+          nullable: true
+        short_term_lots:
+          type: integer
+        long_term_lots:
+          type: integer
+        unrealized_gain_loss_usd:
+          type: number
+          nullable: true
+          description: Always null — price oracle not yet implemented
+        by_asset:
+          type: array
+          items:
+            $ref: "#/components/schemas/LotSummaryByAsset"
+      required:
+        - generated_at
+        - open_lot_count
+        - closed_lot_count
+        - total_lot_count
+        - short_term_lots
+        - long_term_lots
+        - by_asset
+
+    CreateLotRequest:
+      type: object
+      properties:
+        wallet_id:
+          type: string
+        asset_symbol:
+          type: string
+        asset_identifier:
+          type: string
+        chain_id:
+          type: string
+        quantity:
+          type: number
+        cost_basis_usd:
+          type: number
+        cost_basis_per_unit_usd:
+          type: number
+        acquisition_date:
+          type: string
+          format: date-time
+        acquisition_tx_id:
+          type: string
+        position_record_id:
+          type: string
+        notes:
+          type: string
+      required:
+        - wallet_id
+        - asset_symbol
+        - quantity
+        - acquisition_date
+
+    PatchLotRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, closed, partial]
+        quantity:
+          type: number
+        cost_basis_usd:
+          type: number
+          nullable: true
+        disposal_position_id:
+          type: string
+          nullable: true
+        disposal_date:
+          type: string
+          format: date-time
+          nullable: true
+        disposal_proceeds_usd:
+          type: number
+          nullable: true
+        realized_gain_loss_usd:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true

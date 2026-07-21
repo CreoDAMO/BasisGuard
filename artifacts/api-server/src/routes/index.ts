@@ -11,6 +11,7 @@ import chainsRouter from "./chains";
 import submissionsRouter from "./submissions";
 import intelligenceRouter from "./intelligence";
 import transactionsRouter from "./transactions";
+import lotsRouter from "./lots";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use(exportRouter);
 router.use(chainsRouter);
 router.use(submissionsRouter);
 router.use(transactionsRouter);
+router.use(lotsRouter);
 
 export default router;

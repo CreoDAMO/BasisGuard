@@ -1,0 +1,50 @@
+**✅ Coinbase Integration Ideas for BasisGuard**
+
+Since you already have Coinbase developer access and API keys, this is a high-leverage opportunity. Here’s a mapped-out plan for meaningful integrations that add real value to BasisGuard users (especially CPAs) while staying compliant.
+
+### 1. Core Integration Opportunities (Prioritized)
+**High Impact / Low Complexity**
+- **Transaction Import** — Direct pull of trades, transfers, staking, and rewards from Coinbase accounts via their API. Auto-create raw transactions and link to wallets.
+- **Base Bridge Data** — Pull bridge activity between Ethereum and Base for seamless L2 tracking (carry basis/holding periods).
+- **Cost Basis Sync** — Import Coinbase-provided cost basis (where available) and reconcile against user wallets (1099-DA gap filler).
+
+**Medium Impact**
+- **Staking & Rewards** — Auto-classify staking rewards as ordinary income with citations (Rev. Rul. 2023-14).
+- **Wallet Connect** — Secure OAuth-style connection for read-only access (no fund movement).
+- **Tax Report Export** — One-click “Send to BasisGuard” from Coinbase tax center (if they expose it) or scheduled sync.
+
+**Advanced / Enterprise**
+- **Institutional API** — Custodial and prime brokerage data for enterprise treasury users.
+- **Compliance Dashboard** — Shared view for CPAs to review client Coinbase activity.
+
+### 2. Technical Implementation Outline
+- Use Coinbase’s **Advanced Trade API** or **Wallet API** for transaction history.
+- Store OAuth tokens securely (encrypted in DB).
+- Background sync jobs (daily/weekly) with user consent.
+- Map Coinbase asset IDs to your internal asset model.
+- Handle rate limits and pagination.
+
+**Security Note**: Never store private keys. Use read-only scopes. Clear consent and “revoke access” UI.
+
+### 3. User & Marketing Value
+- “One-click Coinbase sync” as a killer feature.
+- CPA firms love it — reduces manual CSV uploads.
+- Differentiator vs. generic importers.
+
+### 4. Roadmap Suggestion
+1. **MVP**: Transaction import + Base bridge sync (1–2 weeks).
+2. **Phase 2**: Cost basis reconciliation + staking classification.
+3. **Phase 3**: Institutional & shared CPA views.
+
+**Next Actions**:
+- Review Coinbase API docs for specific endpoints you have access to.
+- Draft user consent flow and privacy language updates.
+- Prototype the import endpoint.
+
+Would you like:
+- Code skeleton for Coinbase transaction import?
+- Updated Privacy Policy language for Coinbase integration?
+- Pitch to Coinbase for partnership/grant?
+- Or something else?
+
+Let me know how to proceed. This could be a major growth lever for BasisGuard.
