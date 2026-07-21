@@ -1,7 +1,43 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, count } from "drizzle-orm";
 import { db, lotsTable } from "@workspace/db";
-import { z } from "zod/v4";
+import { z } from "zod";
+
+// ── Validation schemas (strict — tighter than generated OpenAPI schemas) ─────
+
+const ListLotsQuery = z.object({
+  wallet_id: z.string().optional(),
+  asset_symbol: z.string().optional(),
+  status: z.enum(["open", "closed", "partial"]).optional(),
+  chain_id: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const CreateLotBody = z.object({
+  wallet_id: z.string().min(1),
+  asset_symbol: z.string().min(1),
+  asset_identifier: z.string().optional(),
+  chain_id: z.string().uuid().optional(),
+  quantity: z.number().positive(),
+  cost_basis_usd: z.number().nonnegative().optional(),
+  cost_basis_per_unit_usd: z.number().nonnegative().optional(),
+  acquisition_date: z.string().datetime(),
+  acquisition_tx_id: z.string().optional(),
+  position_record_id: z.string().uuid().optional(),
+  notes: z.string().optional(),
+});
+
+const PatchLotBody = z.object({
+  status: z.enum(["open", "closed", "partial"]).optional(),
+  quantity: z.number().positive().optional(),
+  cost_basis_usd: z.number().nullable().optional(),
+  disposal_position_id: z.string().uuid().nullable().optional(),
+  disposal_date: z.string().datetime().nullable().optional(),
+  disposal_proceeds_usd: z.number().nullable().optional(),
+  realized_gain_loss_usd: z.number().nullable().optional(),
+  notes: z.string().nullable().optional(),
+});
 
 const router: IRouter = Router();
 
@@ -46,42 +82,6 @@ function serializeLot(lot: typeof lotsTable.$inferSelect) {
     unrealized_gain_loss_usd: null as null,
   };
 }
-
-// ── Validation schemas ────────────────────────────────────────────────────────
-
-const ListLotsQuery = z.object({
-  wallet_id: z.string().optional(),
-  asset_symbol: z.string().optional(),
-  status: z.enum(["open", "closed", "partial"]).optional(),
-  chain_id: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
-});
-
-const CreateLotBody = z.object({
-  wallet_id: z.string().min(1),
-  asset_symbol: z.string().min(1),
-  asset_identifier: z.string().optional(),
-  chain_id: z.string().uuid().optional(),
-  quantity: z.number().positive(),
-  cost_basis_usd: z.number().nonnegative().optional(),
-  cost_basis_per_unit_usd: z.number().nonnegative().optional(),
-  acquisition_date: z.string().datetime(),
-  acquisition_tx_id: z.string().optional(),
-  position_record_id: z.string().uuid().optional(),
-  notes: z.string().optional(),
-});
-
-const PatchLotBody = z.object({
-  status: z.enum(["open", "closed", "partial"]).optional(),
-  quantity: z.number().positive().optional(),
-  cost_basis_usd: z.number().nullable().optional(),
-  disposal_position_id: z.string().uuid().nullable().optional(),
-  disposal_date: z.string().datetime().nullable().optional(),
-  disposal_proceeds_usd: z.number().nullable().optional(),
-  realized_gain_loss_usd: z.number().nullable().optional(),
-  notes: z.string().nullable().optional(),
-});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 

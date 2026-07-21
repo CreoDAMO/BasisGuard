@@ -67,7 +67,7 @@ catalogs:
       specifier: ^7.3.2
       version: 7.3.6
     zod:
-      specifier: ^3.25.76
+      specifier: 3.25.76
       version: 3.25.76
 
 overrides:
@@ -206,6 +206,9 @@ importers:
       viem:
         specifier: ^2.55.2
         version: 2.55.2(typescript@5.9.3)(zod@3.25.76)
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10
