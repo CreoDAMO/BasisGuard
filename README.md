@@ -47,6 +47,21 @@ Tiers map directly to the preparer penalty standards under IRC §6694 and Circul
 
 No position can be assigned a higher tier than the weakest authority linked to it. The tier suggestion engine enforces this ceiling automatically.
 
+### Tax Lot Inventory
+
+The Lot Inventory tracks every currently-held tax lot — one row per acquired position — giving preparers a real-time ledger of cost basis and holding periods across all wallets and assets.
+
+| Field | Description |
+|-------|-------------|
+| **Wallet / asset** | Which wallet holds the lot and what asset it represents |
+| **Quantity** | Units held (or remaining after partial disposals) |
+| **Cost basis** | Total and per-unit USD cost at acquisition |
+| **Acquisition date** | Determines short-term vs. long-term holding period |
+| **Status** | `open` (fully held), `partial` (partially disposed), `closed` (fully disposed) |
+| **Realized gain/loss** | Populated on disposal; links back to the disposing position record |
+
+Lots complement the Evidence Log: Position Records capture *what happened* (classified transactions), while the Lot Inventory captures *what is currently held* (basis and holding period ready for disposal matching). Accurate lot inventory is a prerequisite for specific-identification basis elections under Rev. Proc. 2024-28.
+
 ### Treatment Profiles
 
 A Treatment Profile is a versioned ruleset that maps event types to default classifications and tiers. Profiles allow firms to standardize treatment across a client portfolio and run "what-if" delta analysis before switching to a new profile.
