@@ -8,9 +8,12 @@
 - [Authority citation UUIDs](authority-citation-uuids.md) — 10 IRS citations seeded with fixed UUIDs aa000001-...{1-10}; 9=IRC §1001, 10=IRC §165 added for adapter layer
 - [Protocol adapter layer](protocol-adapter-layer.md) — core/adapters + registry + classify route; registry lazily re-inits; adapters: 0 at startup = no protocols seeded yet (expected)
 - [Review rules extraction](review-rules-extraction.md) — OPEN_GAP_EVENT_TYPES + computeRequiresReview + isStale live in core/reviewRules.ts; positions.ts re-exports them
-- [Testing setup](testing-setup.md) — vitest in api-server; 10 test files, 170 passing; run with pnpm test
+- [Testing setup](testing-setup.md) — vitest in api-server; 12 test files, 212 passing + 43 todo; run with pnpm test
 - [Harvest scanner](harvest-scanner.md) — amount_usd (doublePrecision, nullable) on position_records; GET /positions/harvest-candidates; washSaleDetector pure functions; 30-day window
 - [Coinbase CDP integration](coinbase-integration.md) — CDP keys use JWT/ES256 auth + Advanced Trade v3 API; legacy keys use HMAC + V2 API; auto-detected by isCdpKey()
 - [Express params type](express-params-type.md) — req.params values are string | string[] in Express 5 types; use `req.params.id as string` before passing to Drizzle eq() to avoid TS2769
 - [Drizzle Tx type](drizzle-tx-type.md) — db.transaction() passes PgTransaction not NodePgDatabase; use Parameters<Parameters<typeof db["transaction"]>[0]>[0] as the Tx type
 - [Viem chain dict type](viem-chain-dict.md) — Record<string, typeof mainnet> rejects other chains; use Record<string, Chain> with Chain imported from "viem"
+- [DB schema build step](db-schema-build.md) — lib/db has no build script; after adding new schema files, run `npx tsc -b lib/db/tsconfig.json` to emit .d.ts files before typechecking api-server (project references read dist/, not src/)
+- [Price oracle cache in tests](price-oracle-cache.md) — priceOracle.ts cache is module-level; call clearCache() in beforeEach or tests share stale cache and fetch spy never fires
+- [FIFO lot wiring](fifo-lot-wiring.md) — createPositionFromClassification auto-creates lots (acquisition) or FIFO-matches (disposition) when assetSymbol+quantity are provided; all wrapped in db.transaction()
