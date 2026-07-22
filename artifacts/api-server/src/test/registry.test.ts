@@ -55,7 +55,9 @@ describe("ProtocolRegistry", () => {
     await expect(registry.initialize()).rejects.toThrow("simulated DB failure");
 
     // Now a fresh init with a working DB should succeed again
-    selectMock.mockImplementation(() => ({ from: vi.fn(() => Promise.resolve([])) }));
+    selectMock.mockImplementation(
+      () => ({ from: vi.fn(() => Promise.resolve([])) }) as unknown as ReturnType<typeof db.select>,
+    );
     await registry.initialize();
     expect(registry.adapterCount).toBe(0);
   });

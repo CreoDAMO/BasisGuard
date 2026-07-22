@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbiItem, decodeEventLog, type Log } from "viem";
+import { createPublicClient, http, parseAbiItem, decodeEventLog, type Log, type Chain } from "viem";
 import { mainnet, arbitrum, base, optimism, polygon } from "viem/chains";
 import type { RawTransaction } from "@workspace/db";
 import { BaseProtocolAdapter, type ParsedEvent } from "./base.js";
@@ -30,7 +30,7 @@ const AAVE_V3_POOL_ABI = [
   ),
 ] as const;
 
-const VIEM_CHAINS: Record<string, typeof mainnet> = {
+const VIEM_CHAINS: Record<string, Chain> = {
   ethereum: mainnet,
   arbitrum,
   base,

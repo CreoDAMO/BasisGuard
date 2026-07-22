@@ -39,7 +39,15 @@ interface Submission {
 function useSubmissions(status = "all") {
   return useQuery<Submission[]>({
     queryKey: ["admin-submissions", status],
-    queryFn: () => fetch(`/api/admin/submissions?status=${status}`).then((r) => r.json()),
+    queryFn: async () => {
+      const r = await fetch(`/api/admin/submissions?status=${status}`);
+      if (!r.ok) {
+        if (r.status === 403) return []; // non-admin users see an empty list
+        const body = await r.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `HTTP ${r.status}`);
+      }
+      return r.json() as Promise<Submission[]>;
+    },
   });
 }
 

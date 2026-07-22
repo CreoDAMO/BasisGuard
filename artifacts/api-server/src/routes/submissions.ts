@@ -109,7 +109,7 @@ router.get("/admin/submissions", requireRole(ADMIN_ROLES), async (req, res): Pro
 
 // PATCH /admin/submissions/chain/:id/approve
 router.patch("/admin/submissions/chain/:id/approve", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { reviewed_by } = req.body as { reviewed_by?: string };
   const [sub] = await db.select().from(chainSubmissionsTable).where(eq(chainSubmissionsTable.id, id));
   if (!sub) { res.status(404).json({ error: "Submission not found" }); return; }
@@ -146,7 +146,7 @@ router.patch("/admin/submissions/chain/:id/approve", requireRole(ADMIN_ROLES), a
 
 // PATCH /admin/submissions/chain/:id/reject
 router.patch("/admin/submissions/chain/:id/reject", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { reviewed_by, rejection_reason } = req.body as { reviewed_by?: string; rejection_reason?: string };
   const [updated] = await db.update(chainSubmissionsTable)
     .set({ status: "rejected", reviewedBy: reviewed_by ?? "admin", reviewedAt: new Date(), rejectionReason: rejection_reason ?? null })
@@ -158,7 +158,7 @@ router.patch("/admin/submissions/chain/:id/reject", requireRole(ADMIN_ROLES), as
 
 // PATCH /admin/submissions/protocol/:id/approve
 router.patch("/admin/submissions/protocol/:id/approve", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { reviewed_by } = req.body as { reviewed_by?: string };
   const [sub] = await db.select().from(protocolSubmissionsTable).where(eq(protocolSubmissionsTable.id, id));
   if (!sub) { res.status(404).json({ error: "Submission not found" }); return; }
@@ -187,7 +187,7 @@ router.patch("/admin/submissions/protocol/:id/approve", requireRole(ADMIN_ROLES)
 
 // PATCH /admin/submissions/protocol/:id/reject
 router.patch("/admin/submissions/protocol/:id/reject", requireRole(ADMIN_ROLES), async (req, res): Promise<void> => {
-  const { id } = req.params;
+  const id = req.params.id as string;
   const { reviewed_by, rejection_reason } = req.body as { reviewed_by?: string; rejection_reason?: string };
   const [updated] = await db.update(protocolSubmissionsTable)
     .set({ status: "rejected", reviewedBy: reviewed_by ?? "admin", reviewedAt: new Date(), rejectionReason: rejection_reason ?? null })

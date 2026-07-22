@@ -8,6 +8,9 @@
 - [Authority citation UUIDs](authority-citation-uuids.md) — 10 IRS citations seeded with fixed UUIDs aa000001-...{1-10}; 9=IRC §1001, 10=IRC §165 added for adapter layer
 - [Protocol adapter layer](protocol-adapter-layer.md) — core/adapters + registry + classify route; registry lazily re-inits; adapters: 0 at startup = no protocols seeded yet (expected)
 - [Review rules extraction](review-rules-extraction.md) — OPEN_GAP_EVENT_TYPES + computeRequiresReview + isStale live in core/reviewRules.ts; positions.ts re-exports them
-- [Testing setup](testing-setup.md) — vitest in api-server; 3 test files (reviewRules, washSale, registry); run with pnpm test
+- [Testing setup](testing-setup.md) — vitest in api-server; 10 test files, 170 passing; run with pnpm test
 - [Harvest scanner](harvest-scanner.md) — amount_usd (doublePrecision, nullable) on position_records; GET /positions/harvest-candidates; washSaleDetector pure functions; 30-day window
-- [Coinbase CDP integration](coinbase-integration.md) — CDP API keys (not OAuth); AES-256-GCM token encryption; virtual coinbase-cex chain UUID; Coinbase→BasisGuard type map
+- [Coinbase CDP integration](coinbase-integration.md) — CDP keys use JWT/ES256 auth + Advanced Trade v3 API; legacy keys use HMAC + V2 API; auto-detected by isCdpKey()
+- [Express params type](express-params-type.md) — req.params values are string | string[] in Express 5 types; use `req.params.id as string` before passing to Drizzle eq() to avoid TS2769
+- [Drizzle Tx type](drizzle-tx-type.md) — db.transaction() passes PgTransaction not NodePgDatabase; use Parameters<Parameters<typeof db["transaction"]>[0]>[0] as the Tx type
+- [Viem chain dict type](viem-chain-dict.md) — Record<string, typeof mainnet> rejects other chains; use Record<string, Chain> with Chain imported from "viem"
