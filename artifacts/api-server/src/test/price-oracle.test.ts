@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getSpotPrice, getBatchPrices } from "../core/priceOracle.js";
+import { getSpotPrice, getBatchPrices, clearCache } from "../core/priceOracle.js";
 
 // ── CoinGecko fetch mock helpers ──────────────────────────────────────────────
 
@@ -29,9 +29,9 @@ function mockCoinGeckoResponse(
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  // Clear the module-level price cache between tests by resetting all mocks.
-  // The cache persists across calls within a test but is cleared on module
-  // reload — use vi.isolateModules in tests that need strict isolation.
+  // Clear the module-level price cache between tests so that cached values
+  // from one test don't suppress the fetch spy in a subsequent test.
+  clearCache();
 });
 
 afterEach(() => {

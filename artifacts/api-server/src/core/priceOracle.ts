@@ -60,6 +60,11 @@ function symbolToId(symbol: string): string {
   return SYMBOL_MAP[symbol.toUpperCase()] ?? symbol.toLowerCase();
 }
 
+/** Clear the in-memory price cache. Exposed for testing only. */
+export function clearCache(): void {
+  cache.clear();
+}
+
 /** Fetch prices for multiple CoinGecko IDs in one request. */
 async function fetchPrices(ids: string[]): Promise<Map<string, number>> {
   if (ids.length === 0) return new Map();

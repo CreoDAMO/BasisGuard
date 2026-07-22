@@ -111,17 +111,24 @@ router.get("/lots/summary", async (req, res): Promise<void> => {
   const open = rows.filter((r) => r.status === "open" || r.status === "partial");
   const closed = rows.filter((r) => r.status === "closed");
 
+  // Batch-fetch current prices for all open-lot assets in one CoinGecko call
+  const openSymbols = [...new Set(open.map((l) => l.assetSymbol))];
+  const prices = openSymbols.length > 0 ? await getBatchPrices(openSymbols) : {};
+
   // Build per-asset aggregates for open lots only
   const assetMap = new Map<string, {
     asset_symbol: string;
     open_lot_count: number;
     total_quantity: number;
     total_cost_basis_usd: number | null;
+    current_value_usd: number | null;
+    unrealized_gain_loss_usd: number | null;
     short_term_lots: number;
     long_term_lots: number;
   }>();
 
   let totalBasis: number | null = null;
+  let totalUnrealized: number | null = null;
   let shortTermCount = 0;
   let longTermCount = 0;
 
@@ -130,14 +137,33 @@ router.get("/lots/summary", async (req, res): Promise<void> => {
     if (days > LONG_TERM_DAYS) longTermCount++; else shortTermCount++;
     if (lot.costBasisUsd != null) totalBasis = (totalBasis ?? 0) + lot.costBasisUsd;
 
+    const priceUsd = prices[lot.assetSymbol] ?? null;
+    const currentValue = priceUsd != null ? priceUsd * lot.quantity : null;
+    const lotGainLoss =
+      currentValue != null && lot.costBasisUsd != null
+        ? currentValue - lot.costBasisUsd
+        : null;
+    if (lotGainLoss != null) totalUnrealized = (totalUnrealized ?? 0) + lotGainLoss;
+
     let entry = assetMap.get(lot.assetSymbol);
     if (!entry) {
-      entry = { asset_symbol: lot.assetSymbol, open_lot_count: 0, total_quantity: 0, total_cost_basis_usd: null, short_term_lots: 0, long_term_lots: 0 };
+      entry = {
+        asset_symbol: lot.assetSymbol,
+        open_lot_count: 0,
+        total_quantity: 0,
+        total_cost_basis_usd: null,
+        current_value_usd: null,
+        unrealized_gain_loss_usd: null,
+        short_term_lots: 0,
+        long_term_lots: 0,
+      };
       assetMap.set(lot.assetSymbol, entry);
     }
     entry.open_lot_count++;
     entry.total_quantity += lot.quantity;
     if (lot.costBasisUsd != null) entry.total_cost_basis_usd = (entry.total_cost_basis_usd ?? 0) + lot.costBasisUsd;
+    if (currentValue != null) entry.current_value_usd = (entry.current_value_usd ?? 0) + currentValue;
+    if (lotGainLoss != null) entry.unrealized_gain_loss_usd = (entry.unrealized_gain_loss_usd ?? 0) + lotGainLoss;
     if (days > LONG_TERM_DAYS) entry.long_term_lots++; else entry.short_term_lots++;
   }
 
@@ -150,12 +176,7 @@ router.get("/lots/summary", async (req, res): Promise<void> => {
     total_cost_basis_usd: totalBasis,
     short_term_lots: shortTermCount,
     long_term_lots: longTermCount,
-    /**
-     * unrealized_gain_loss_usd requires a price oracle and is not yet implemented.
-     * The forward-looking analysis (which lots are underwater right now) requires
-     * current market prices per asset — planned as a future enhancement.
-     */
-    unrealized_gain_loss_usd: null,
+    unrealized_gain_loss_usd: totalUnrealized,
     by_asset: [...assetMap.values()].sort((a, b) => (b.total_cost_basis_usd ?? 0) - (a.total_cost_basis_usd ?? 0)),
   });
 });

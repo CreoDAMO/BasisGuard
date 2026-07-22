@@ -28,6 +28,12 @@ tags:
     description: Tier suggestion engine and stale position detection
   - name: lots
     description: Lot inventory — open positions, cost basis, and holding-period tracking
+  - name: notifications
+    description: In-app notification inbox and preferences
+  - name: exchanges
+    description: Kraken and Gemini exchange connection and sync
+  - name: metrics
+    description: Internal observability metrics (admin only)
 
 paths:
   /healthz:
@@ -1151,6 +1157,270 @@ paths:
                 $ref: "#/components/schemas/Lot"
         "404":
           description: Not found
+
+  # ── Notifications ────────────────────────────────────────────────────────────
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications for the current user
+      parameters:
+        - name: unread_only
+          in: query
+          schema: { type: boolean }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 100 }
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/count:
+    get:
+      operationId: getNotificationCount
+      tags: [notifications]
+      summary: Get unread notification count (for bell badge)
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread: { type: integer }
+                required: [unread]
+
+  /notifications/generate:
+    post:
+      operationId: generateNotifications
+      tags: [notifications]
+      summary: Refresh auto-generated notifications (stale positions, review queue)
+      responses:
+        "200":
+          description: Notification types that were generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  generated:
+                    type: array
+                    items: { type: string }
+                required: [generated]
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a single notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "404":
+          description: Not found
+
+  /notifications/preferences:
+    get:
+      operationId: getNotificationPreferences
+      tags: [notifications]
+      summary: Get notification preferences for the current user
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+    put:
+      operationId: updateNotificationPreferences
+      tags: [notifications]
+      summary: Update notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationPreferences"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+
+  # ── Exchanges (Kraken + Gemini) ───────────────────────────────────────────────
+
+  /kraken/connection:
+    get:
+      operationId: getKrakenConnection
+      tags: [exchanges]
+      summary: Get Kraken connection status
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeConnection"
+    post:
+      operationId: saveKrakenConnection
+      tags: [exchanges]
+      summary: Save or replace Kraken API credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeCredentials"
+      responses:
+        "200":
+          description: Connection confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeConnection"
+    delete:
+      operationId: deleteKrakenConnection
+      tags: [exchanges]
+      summary: Remove Kraken connection
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disconnected: { type: boolean }
+                  exchange: { type: string }
+
+  /kraken/sync:
+    post:
+      operationId: syncKraken
+      tags: [exchanges]
+      summary: Pull Kraken ledger entries into raw_transactions
+      responses:
+        "200":
+          description: Sync summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        "400":
+          description: No connection configured
+        "502":
+          description: Exchange API error
+
+  /gemini/connection:
+    get:
+      operationId: getGeminiConnection
+      tags: [exchanges]
+      summary: Get Gemini connection status
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeConnection"
+    post:
+      operationId: saveGeminiConnection
+      tags: [exchanges]
+      summary: Save or replace Gemini API credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeCredentials"
+      responses:
+        "200":
+          description: Connection confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeConnection"
+    delete:
+      operationId: deleteGeminiConnection
+      tags: [exchanges]
+      summary: Remove Gemini connection
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  disconnected: { type: boolean }
+                  exchange: { type: string }
+
+  /gemini/sync:
+    post:
+      operationId: syncGemini
+      tags: [exchanges]
+      summary: Pull Gemini trades and transfers into raw_transactions
+      responses:
+        "200":
+          description: Sync summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        "400":
+          description: No connection configured
+        "502":
+          description: Exchange API error
+
+  # ── Metrics ──────────────────────────────────────────────────────────────────
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      tags: [metrics]
+      summary: Internal process metrics (admin only)
+      responses:
+        "200":
+          description: Metrics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsSnapshot"
+        "403":
+          description: Forbidden — admin role required
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 components:
@@ -2300,10 +2570,14 @@ components:
           type: string
           enum: [short_term, long_term]
           description: short_term ≤ 365 days, long_term > 365 days
+        current_price_usd:
+          type: number
+          nullable: true
+          description: Current spot price in USD from the price oracle (open/partial lots only)
         unrealized_gain_loss_usd:
           type: number
           nullable: true
-          description: Always null — price oracle not yet implemented
+          description: "(current price − cost basis per unit) × quantity for open/partial lots; null when cost basis or price is unavailable"
       required:
         - id
         - wallet_id
@@ -2327,6 +2601,14 @@ components:
         total_cost_basis_usd:
           type: number
           nullable: true
+        current_value_usd:
+          type: number
+          nullable: true
+          description: Current market value of open lots (price × quantity); null when price unavailable
+        unrealized_gain_loss_usd:
+          type: number
+          nullable: true
+          description: current_value_usd − total_cost_basis_usd; null when either is unavailable
         short_term_lots:
           type: integer
         long_term_lots:
@@ -2362,7 +2644,7 @@ components:
         unrealized_gain_loss_usd:
           type: number
           nullable: true
-          description: Always null — price oracle not yet implemented
+          description: Total unrealized gain/loss across all open lots in USD (null when price unavailable)
         by_asset:
           type: array
           items:
@@ -2435,3 +2717,116 @@ components:
         notes:
           type: string
           nullable: true
+
+    # ── Notifications ─────────────────────────────────────────────────────────
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [stale_positions, review_queue, sync_error, general]
+        title:
+          type: string
+        body:
+          type: string
+        position_id:
+          type: string
+          format: uuid
+          nullable: true
+        read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required: [id, type, title, body, read, created_at]
+
+    NotificationPreferences:
+      type: object
+      properties:
+        stale_alerts:
+          type: boolean
+        review_queue_alerts:
+          type: boolean
+        sync_error_alerts:
+          type: boolean
+
+    # ── Exchanges ─────────────────────────────────────────────────────────────
+
+    ExchangeConnection:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        exchange:
+          type: string
+          nullable: true
+        api_key:
+          type: string
+          nullable: true
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+        tx_count:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+      required: [connected]
+
+    ExchangeCredentials:
+      type: object
+      properties:
+        api_key:
+          type: string
+        api_secret:
+          type: string
+      required: [api_key, api_secret]
+
+    SyncResult:
+      type: object
+      properties:
+        exchange:
+          type: string
+        synced:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required: [synced, skipped, errors]
+
+    # ── Metrics ───────────────────────────────────────────────────────────────
+
+    MetricsSnapshot:
+      type: object
+      properties:
+        uptime_seconds:
+          type: integer
+        counters:
+          type: object
+          additionalProperties:
+            type: integer
+        timings:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              count: { type: integer }
+              total_ms: { type: integer }
+              avg_ms: { type: integer }
+              max_ms: { type: integer }
+        generated_at:
+          type: string
+          format: date-time
+      required: [uptime_seconds, counters, timings, generated_at]
