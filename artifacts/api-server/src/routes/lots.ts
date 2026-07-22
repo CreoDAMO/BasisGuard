@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, count } from "drizzle-orm";
 import { db, lotsTable } from "@workspace/db";
 import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
+import { getBatchPrices } from "../core/priceOracle.js";
 import { z } from "zod";
 
 // ── Validation schemas (strict — tighter than generated OpenAPI schemas) ─────
@@ -52,8 +53,24 @@ function holdingDays(acquisitionDate: Date, disposalDate?: Date | null): number 
   return Math.floor((to.getTime() - acquisitionDate.getTime()) / MS_PER_DAY);
 }
 
-function serializeLot(lot: typeof lotsTable.$inferSelect) {
-  const days = holdingDays(lot.acquisitionDate, lot.status === "open" || lot.status === "partial" ? null : lot.disposalDate);
+/**
+ * Serialize a lot record.  When `currentPriceUsd` is supplied (from the
+ * price oracle), `current_price_usd` and `unrealized_gain_loss_usd` are
+ * populated for open/partial lots; closed lots always return null for both.
+ */
+function serializeLot(
+  lot: typeof lotsTable.$inferSelect,
+  currentPriceUsd: number | null = null,
+) {
+  const isOpen = lot.status === "open" || lot.status === "partial";
+  const days = holdingDays(lot.acquisitionDate, isOpen ? null : lot.disposalDate);
+
+  // Unrealized G/L: (current price − cost basis per unit) × quantity
+  const unrealizedGainLossUsd =
+    isOpen && lot.costBasisPerUnitUsd != null && currentPriceUsd != null
+      ? (currentPriceUsd - lot.costBasisPerUnitUsd) * lot.quantity
+      : null;
+
   return {
     id: lot.id,
     position_record_id: lot.positionRecordId ?? null,
@@ -76,11 +93,8 @@ function serializeLot(lot: typeof lotsTable.$inferSelect) {
     // Computed fields
     holding_days: days,
     holding_period_type: days > LONG_TERM_DAYS ? "long_term" : "short_term",
-    /**
-     * unrealized_gain_loss_usd is always null — a price oracle is required.
-     * Use the mark-to-market endpoint (future) or supply spot prices externally.
-     */
-    unrealized_gain_loss_usd: null as null,
+    current_price_usd: isOpen ? currentPriceUsd : null,
+    unrealized_gain_loss_usd: unrealizedGainLossUsd,
   };
 }
 

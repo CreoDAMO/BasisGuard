@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, rawTransactionsTable, chainsTable, protocolsTable } from "@workspace/db";
 import { requireAuth, requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
+import { strictLimiter } from "../middlewares/rateLimit.js";
 import {
   createPositionFromClassification,
   type CreatePositionInput,
@@ -153,7 +154,7 @@ router.post("/transactions/ingest", requireAuth, async (req, res): Promise<void>
  *   - limit   Max transactions to process in one call (default 50, max 200).
  *   - protocol_id   If supplied, only classify transactions for this protocol.
  */
-router.post("/transactions/classify", requireAuth, async (req, res): Promise<void> => {
+router.post("/transactions/classify", requireAuth, strictLimiter, async (req, res): Promise<void> => {
   const rawLimit = parseInt((req.query.limit as string) ?? "50", 10);
   const limit = isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 200);
   const protocolId = req.query.protocol_id as string | undefined;

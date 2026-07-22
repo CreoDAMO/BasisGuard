@@ -122,24 +122,27 @@ router.patch("/admin/submissions/chain/:id/approve", requireRole(ADMIN_ROLES), a
     parentChainId = parent?.id ?? null;
   }
 
-  // Create the chain
-  const [newChain] = await db.insert(chainsTable).values({
-    name: sub.name,
-    slug: sub.slug,
-    isL2: sub.isL2,
-    parentChainId,
-    metadata: {
-      rpc_url: sub.rpcUrl,
-      explorer_url: sub.explorerUrl,
-      native_token: sub.nativeToken,
-    },
-  }).returning();
-
-  // Mark submission approved
-  const [updated] = await db.update(chainSubmissionsTable)
-    .set({ status: "approved", reviewedBy: reviewed_by ?? "admin", reviewedAt: new Date() })
-    .where(eq(chainSubmissionsTable.id, id))
-    .returning();
+  // 0h — wrap the 2-step write (insert chain + mark submission approved) in a
+  // single transaction so a failure after chain insert cannot leave an orphaned
+  // chain record with no corresponding approved submission.
+  const { updated, newChain } = await db.transaction(async (tx) => {
+    const [chain] = await tx.insert(chainsTable).values({
+      name: sub.name,
+      slug: sub.slug,
+      isL2: sub.isL2,
+      parentChainId,
+      metadata: {
+        rpc_url: sub.rpcUrl,
+        explorer_url: sub.explorerUrl,
+        native_token: sub.nativeToken,
+      },
+    }).returning();
+    const [submission] = await tx.update(chainSubmissionsTable)
+      .set({ status: "approved", reviewedBy: reviewed_by ?? "admin", reviewedAt: new Date() })
+      .where(eq(chainSubmissionsTable.id, id))
+      .returning();
+    return { updated: submission, newChain: chain };
+  });
 
   res.json({ submission: serializeChainSub(updated), created_chain_id: newChain.id });
 });
@@ -168,19 +171,22 @@ router.patch("/admin/submissions/protocol/:id/approve", requireRole(ADMIN_ROLES)
   const [chain] = await db.select().from(chainsTable).where(eq(chainsTable.slug, sub.chainSlug));
   if (!chain) { res.status(400).json({ error: `Chain '${sub.chainSlug}' not found — add it first` }); return; }
 
-  const [newProtocol] = await db.insert(protocolsTable).values({
-    chainId: chain.id,
-    name: sub.name,
-    slug: sub.slug,
-    contractAddresses: (sub.contractAddresses as Record<string, unknown>) ?? {},
-    adapterVersion: sub.adapterVersion ?? null,
-    metadata: { documentation_url: sub.documentationUrl },
-  }).returning();
-
-  const [updated] = await db.update(protocolSubmissionsTable)
-    .set({ status: "approved", reviewedBy: reviewed_by ?? "admin", reviewedAt: new Date() })
-    .where(eq(protocolSubmissionsTable.id, id))
-    .returning();
+  // 0h — wrap insert + update in a single transaction.
+  const { updated, newProtocol } = await db.transaction(async (tx) => {
+    const [protocol] = await tx.insert(protocolsTable).values({
+      chainId: chain.id,
+      name: sub.name,
+      slug: sub.slug,
+      contractAddresses: (sub.contractAddresses as Record<string, unknown>) ?? {},
+      adapterVersion: sub.adapterVersion ?? null,
+      metadata: { documentation_url: sub.documentationUrl },
+    }).returning();
+    const [submission] = await tx.update(protocolSubmissionsTable)
+      .set({ status: "approved", reviewedBy: reviewed_by ?? "admin", reviewedAt: new Date() })
+      .where(eq(protocolSubmissionsTable.id, id))
+      .returning();
+    return { updated: submission, newProtocol: protocol };
+  });
 
   res.json({ submission: serializeProtocolSub(updated), created_protocol_id: newProtocol.id });
 });
