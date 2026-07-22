@@ -2,9 +2,12 @@ import React from "react";
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarFooter } from "@/components/ui/sidebar";
-import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors, Layers, Link2 } from "lucide-react";
+import { LayoutDashboard, List, CheckSquare, BookOpen, Users, Download, ShieldCheck, Network, Inbox, LogOut, ArrowUpDown, Scissors, Layers, Link2, Calculator } from "lucide-react";
 import { useCurrentUser, ROLE_LABELS } from "@/hooks/use-current-user";
 import { NotificationBell } from "@/components/notifications/notification-bell";
+
+// Derived from Vite's BASE_URL — same logic as App.tsx.  Needed for signOut redirect.
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -151,6 +154,14 @@ export function AppSidebar() {
                   <Link href="/connections" className="flex items-center gap-3 w-full px-4 py-2">
                     <Link2 className="h-4 w-4" />
                     <span>Connections</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/tax-optimizer")}>
+                  <Link href="/tax-optimizer" className="flex items-center gap-3 w-full px-4 py-2">
+                    <Calculator className="h-4 w-4" />
+                    <span>Tax Optimizer</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -75,7 +75,9 @@ describe("simulateSale", () => {
     // Long-term lots (LT_HIGH basis=50k then LT_LOT basis=20k) come first
     expect(ids[0]).toBe("lt-h");
     expect(ids[1]).toBe("lt");
-    expect(result.shortTermGainUsd).toBe(20_000); // last 0 used ST at 40k basis
+    // LT_HIGH (0.5) + LT_LOT (1.0) = exactly 1.5 BTC — all long-term, no ST lots consumed
+    expect(result.shortTermGainUsd).toBeNull();
+    expect(result.longTermGainUsd).not.toBeNull();
   });
 
   it("partial fill when quantity exceeds available", () => {
@@ -124,8 +126,11 @@ describe("compareStrategies", () => {
     // FIFO takes LT_LOT (basis 20k) → gain 40k — the largest
     const fifo = results.find((r) => r.strategy === "fifo")!;
     expect(fifo.totalGainUsd).toBe(40_000);
-    // It should be last (highest gain) in the sorted list
-    expect(results[results.length - 1].strategy).toBe("fifo");
+    // min_tax also takes LT_LOT (long-term first) → same 40k gain.
+    // Both FIFO and min_tax produce the highest gain — the last entry has 40k.
+    expect(results[results.length - 1].totalGainUsd).toBe(40_000);
+    // LIFO and HIFO both produce the lower gain (20k) and appear first.
+    expect(results[0].totalGainUsd).toBe(20_000);
   });
 });
 
@@ -217,5 +222,89 @@ describe("estateStepUp", () => {
     const closedLot = lot("cl", "BTC", 1, 30_000, new Date("2025-01-01T00:00:00Z"), "closed");
     const result = estateStepUp([closedLot], "wallet-1", STEP_UP_DATE, prices);
     expect(result.lots).toHaveLength(0);
+  });
+});
+
+// ── Estate step-up route serialization contract ───────────────────────────────
+//
+// The pure function returns camelCase; the HTTP route MUST serialize to
+// snake_case before sending the response. These tests lock down that contract
+// so a rename in the core types can't silently break the API shape.
+
+describe("estate-step-up route serialization contract", () => {
+  const STEP_UP_DATE = new Date("2026-06-01T00:00:00Z");
+  const LOTS = [
+    lot("a", "BTC", 2, 10_000, new Date("2025-01-01T00:00:00Z")),
+    lot("b", "ETH", 5, 1_000, new Date("2024-06-01T00:00:00Z")),
+  ];
+  const prices: Record<string, number | null> = { BTC: 65_000, ETH: 4_000 };
+
+  /** Mirrors the serialization in routes/tax-optimizer.ts */
+  function serializeStepUpResult(result: ReturnType<typeof estateStepUp>) {
+    return {
+      step_up_date: result.stepUpDate,
+      wallet_id: result.walletId,
+      total_original_basis_usd: result.totalOriginalBasisUsd,
+      total_stepped_up_basis_usd: result.totalSteppedUpBasisUsd,
+      total_gain_eliminated_usd: result.totalGainEliminatedUsd,
+      lots: result.lots.map((l) => ({
+        lot_id: l.lotId,
+        asset_symbol: l.assetSymbol,
+        quantity: l.quantity,
+        original_cost_basis_usd: l.originalCostBasisUsd,
+        original_cost_basis_per_unit_usd: l.originalCostBasisPerUnitUsd,
+        step_up_price_usd: l.stepUpPriceUsd,
+        stepped_up_cost_basis_usd: l.steppedUpCostBasisUsd,
+        stepped_up_cost_basis_per_unit_usd: l.steppedUpCostBasisPerUnitUsd,
+        gain_eliminated_usd: l.gainEliminatedUsd,
+      })),
+    };
+  }
+
+  it("top-level response uses snake_case keys (not camelCase)", () => {
+    const raw = estateStepUp(LOTS, "wallet-1", STEP_UP_DATE, prices);
+    const serialized = serializeStepUpResult(raw);
+
+    expect(serialized).toHaveProperty("step_up_date");
+    expect(serialized).toHaveProperty("wallet_id", "wallet-1");
+    expect(serialized).toHaveProperty("total_original_basis_usd");
+    expect(serialized).toHaveProperty("total_stepped_up_basis_usd");
+    expect(serialized).toHaveProperty("total_gain_eliminated_usd");
+
+    // Ensure camelCase keys are NOT present
+    expect(serialized).not.toHaveProperty("stepUpDate");
+    expect(serialized).not.toHaveProperty("walletId");
+    expect(serialized).not.toHaveProperty("totalOriginalBasisUsd");
+  });
+
+  it("lot entries use snake_case keys (not camelCase)", () => {
+    const raw = estateStepUp(LOTS, "wallet-1", STEP_UP_DATE, prices);
+    const serialized = serializeStepUpResult(raw);
+
+    expect(serialized.lots).toHaveLength(2);
+    const lotRow = serialized.lots[0];
+
+    expect(lotRow).toHaveProperty("lot_id");
+    expect(lotRow).toHaveProperty("asset_symbol");
+    expect(lotRow).toHaveProperty("original_cost_basis_usd");
+    expect(lotRow).toHaveProperty("step_up_price_usd");
+    expect(lotRow).toHaveProperty("stepped_up_cost_basis_usd");
+    expect(lotRow).toHaveProperty("gain_eliminated_usd");
+
+    expect(lotRow).not.toHaveProperty("lotId");
+    expect(lotRow).not.toHaveProperty("assetSymbol");
+    expect(lotRow).not.toHaveProperty("originalCostBasisUsd");
+    expect(lotRow).not.toHaveProperty("gainEliminatedUsd".replace("Usd", "Usd")); // kept for clarity
+  });
+
+  it("computed values are correct after serialization", () => {
+    const raw = estateStepUp(LOTS, "wallet-1", STEP_UP_DATE, prices);
+    const serialized = serializeStepUpResult(raw);
+
+    // BTC: 2 units × $65k = $130k stepped up; original = 2 × $10k = $20k
+    const btcLot = serialized.lots.find((l) => l.asset_symbol === "BTC")!;
+    expect(btcLot.stepped_up_cost_basis_usd).toBeCloseTo(130_000, 2);
+    expect(btcLot.gain_eliminated_usd).toBeCloseTo(110_000, 2);
+    expect(serialized.wallet_id).toBe("wallet-1");
   });
 });

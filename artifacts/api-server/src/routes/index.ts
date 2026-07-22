@@ -16,6 +16,7 @@ import coinbaseRouter from "./coinbase";
 import notificationsRouter from "./notifications";
 import exchangesRouter from "./exchanges";
 import metricsRouter from "./metrics";
+import taxOptimizerRouter from "./tax-optimizer";
 
 const router: IRouter = Router();
 
@@ -41,5 +42,6 @@ router.use(coinbaseRouter);
 router.use(notificationsRouter);
 router.use(exchangesRouter);
 router.use(metricsRouter);
+router.use(taxOptimizerRouter);
 
 export default router;

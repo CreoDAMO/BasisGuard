@@ -108,6 +108,66 @@ export async function getSpotPrice(symbol: string): Promise<number | null> {
 }
 
 /**
+ * Fetch the USD price for a single asset on a specific historical date
+ * using CoinGecko's /coins/{id}/history endpoint.
+ *
+ * `date` should be a Date object representing the date-of-death / step-up date.
+ * Returns null when the asset is unknown or the API is unavailable.
+ * Note: CoinGecko free API historical data is available up to ~365 days back
+ * on the free tier; older dates may return no price data.
+ */
+export async function getHistoricalPrice(
+  symbol: string,
+  date: Date,
+): Promise<number | null> {
+  const id = symbolToId(symbol);
+  // CoinGecko history endpoint uses dd-mm-yyyy format
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = date.getUTCFullYear();
+  const dateStr = `${dd}-${mm}-${yyyy}`;
+
+  const url = `https://api.coingecko.com/api/v3/coins/${id}/history?date=${dateStr}&localization=false`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!resp.ok) return null;
+
+    const data = (await resp.json()) as {
+      market_data?: { current_price?: { usd?: number } };
+    };
+
+    const price = data.market_data?.current_price?.usd ?? null;
+    return typeof price === "number" ? price : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Batch historical price lookup for multiple symbols on the same date.
+ * Fires one request per symbol (CoinGecko has no batch historical endpoint).
+ * Returns symbol → price (null = unavailable).
+ */
+export async function getHistoricalBatchPrices(
+  symbols: string[],
+  date: Date,
+): Promise<Record<string, number | null>> {
+  const unique = [...new Set(symbols.map((s) => s.toUpperCase()))];
+  const entries = await Promise.all(
+    unique.map(async (sym): Promise<[string, number | null]> => [
+      sym,
+      await getHistoricalPrice(sym, date),
+    ]),
+  );
+  return Object.fromEntries(entries);
+}
+
+/**
  * Batch price lookup. Returns a map from symbol → USD price (null = unknown).
  * Shares a single CoinGecko request for all uncached symbols.
  */

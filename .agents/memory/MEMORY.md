@@ -2,6 +2,7 @@
 - [Timestamp quirk](timestamp-quirk.md) — `timestamptz` not exported from drizzle-orm/pg-core; use `timestamp("col", { withTimezone: true })` instead
 - [CSS import order](css-import-order.md) — Google Fonts @import url() must precede @import 'tailwindcss' in index.css or PostCSS errors
 - [Express route ordering](express-route-ordering.md) — static paths (/review-queue, /batch-signoff, /tier-suggestion) must be declared before parameterized routes (/:id) in the same router
+- [Tier 3 Tax Optimizer](tier3-tax-optimizer.md) — simulateSale/compareStrategies sort stability, historical price oracle (CoinGecko dd-mm-yyyy), basePath fix in sidebar
 - [Stale flag pattern](stale-flag.md) — is_stale is computed dynamically at serialization time (reasonable_basis + >180 days + no superseded_by); never stored in DB
 - [Orval naming conflicts](orval-naming-conflicts.md) — inline anonymous request bodies generate same name in api.ts (Zod) and types/ (TS); fix by extracting to named $ref schemas in OpenAPI
 - [DB seeding approach](db-seeding.md) — Node --experimental-strip-types cannot resolve extensionless ESM imports from workspace packages; use psql direct SQL for seeding instead
