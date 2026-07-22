@@ -490,3 +490,63 @@ Tests: 12 files, 212 passing, 43 todos The price-oracle test failure is fixed �
 OpenAPI spec updated with all new endpoint and schema definitions; unrealized_gain_loss_usd stale comments removed from Lot and LotSummary.
 
 The entire roadmap through Tier 4 is now implemented. Tier 3 (Tax Optimizer, what-if simulation, estate basis step-up) remains the logical next phase — it depends on the lot + price oracle data that's now flowing.
+
+The user wants to implement Tier 3 — Tax Optimizer. Let me think about what that entails:
+
+Tax Optimizer — Given a user's lot inventory, suggest which lots to sell to minimize tax impact (tax-loss harvesting, long-term vs short-term capital gains optimization)
+What-if simulation — "If I sell X BTC today, what's my tax impact?" calculator
+Estate basis step-up — When a taxpayer dies, the cost basis of inherited assets steps up to the fair market value at date of death (IRC §1014)
+Let me explore the current codebase to understand what's already there before I start building, then plan the Tier 3 implementation. I need to create a core module with algorithms for selecting optimal lots to close based on different strategies (FIFO, LIFO, specific identification), identifying tax-loss harvesting opportunities, and analyzing short-term versus long-term capital gains trade-offs. Then I'll build API endpoints to handle what-if scenarios for selling specific amounts of assets, retrieve optimization recommendations, and calculate stepped-up basis for estate planning purposes.
+
+Let me orient quickly before building — I need to see the current lot, price oracle, and route structure so Tier 3 lands cleanly.
+
+Good. I have a clear picture of the codebase. Now let me plan Tier 3:
+
+Tier 3 — Tax Optimizer
+
+The core components:
+
+core/taxOptimizer.ts — pure algorithms:
+
+simulateSale(lots, assetSymbol, quantityToSell, currentPriceUsd, strategy) — given open lots for an asset and a quantity to sell, compute tax impact under different lot-selection strategies (FIFO, LIFO, HIFO=highest cost first, MIN_TAX=minimize short-term gains)
+rankHarvestCandidates(lots, prices) — rank open lots by unrealized loss for tax-loss harvesting
+estateStepUp(lots, stepUpDate, stepUpPrices) — compute new cost basis at FMV for inherited lots
+routes/tax-optimizer.ts — endpoints for what-if sale simulations, ranked loss-harvesting candidates, and basis step-up calculations for a given date and price
+
+Frontend: a Tax Optimizer interface with forms for simulating sales, viewing harvest recommendations, and calculating estate step-ups
+
+Tests in test/taxOptimizer.test.ts
+
+Now I'm detailing what each endpoint should accept and return, starting with the simulate endpoint that takes a wallet ID, asset symbol, quantity, and cost-basis strategy to show the tax impact of selling.
+
+Defining API response schemas... Defining lot selection strategies... The step-up basis calculation needs historical prices from CoinGecko's free API, which has a 365-day limit but should work for most cases. I'll integrate historical price fetching into the price oracle, then build out the core module, API route, tests, and frontend page together.
+
+Good map. I'll build Tier 3 in parallel across all layers — pure algorithm core, API route, tests, and frontend page — all at once.
+
+Let me continue building Tier 3. I have the context I need:
+
+core/taxOptimizer.ts — pure algorithm module
+routes/tax-optimizer.ts — HTTP handlers
+Register in routes/index.ts
+test/taxOptimizer.test.ts
+Frontend: Tax Optimizer page + sidebar nav entry
+Let me also look at the app sidebar and App.tsx to know how to add the nav item, and look at an existing page for patterns (like harvest-scanner.tsx).
+
+I'll parallelize all reads and then write all files.
+
+Now I have everything I need. Let me read the frontend patterns while writing the backend files in parallel.
+
+Now I have all the context I need. Let me write all the remaining files in parallel:
+
+artifacts/api-server/src/routes/tax-optimizer.ts — API route handlers
+artifacts/api-server/src/test/taxOptimizer.test.ts — tests
+artifacts/basisguard/src/pages/tax-optimizer.tsx — frontend page
+Update artifacts/api-server/src/routes/index.ts — register new router
+Update artifacts/basisguard/src/App.tsx — add route
+Update artifacts/basisguard/src/components/layout/app-sidebar.tsx — add nav item
+Update lib/api-spec/openapi.yaml — add tax-optimizer endpoints
+For the estate step-up calculation, I need historical prices from the CoinGecko API. I'll add a getHistoricalPrice function to the price oracle that queries their historical endpoint by date, then check if this already exists or needs to be created.
+
+Looking at the current priceOracle.ts exports, I see clearCache, getSpotPrice, and getBatchPrices. I need to add getHistoricalPrice and getHistoricalBatchPrices functions to handle date-specific price lookups.
+
+Now I'll write all the remaining pieces in parallel — the route, tests, frontend page, historical price oracle extension, and all the wiring.
