@@ -33,6 +33,7 @@ lib/
 | Validation | Zod v4, drizzle-zod |
 | API codegen | Orval (generates typed hooks + Zod schemas from `lib/api-spec/openapi.yaml`) |
 | EVM decoding | viem 2 (`decodeEventLog`, public client for receipt fetching) |
+| Price oracle | CoinGecko (current: `/simple/price`; historical: `/coins/{id}/history`) |
 | Build | esbuild |
 | Tests | Vitest 4 |
 
@@ -53,12 +54,16 @@ lib/
 | `protocols` | DeFi protocols (slug links to adapter class; FK to chain) |
 | `chain_submissions` | Community chain onboarding requests |
 | `protocol_submissions` | Community protocol onboarding requests |
+| `notifications` | Per-user notification log (stale positions, review queue, sync errors) |
+| `notification_preferences` | Per-user toggles for each notification category |
+| `exchange_connections` | Per-user exchange credentials (API key + AES-256-GCM encrypted secret) |
 
-### Key columns added since initial import
+### Key columns
 
 | Column | Table | Type | Purpose |
 |---|---|---|---|
 | `amount_usd` | `position_records` | `double precision` (nullable) | Realized gain/loss in USD; set by adapters; used by loss-harvesting scanner |
+| `cost_basis_per_unit_usd` | `lots` | `double precision` (nullable) | Pre-computed per-unit basis; used directly by Tax Optimizer harvest tab |
 
 ---
 
@@ -104,6 +109,16 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 | POST | `/api/transactions/ingest` | Any authenticated |
 | POST | `/api/transactions/classify` | Any authenticated |
 
+### Tax Optimizer
+
+All responses use snake_case keys. Serializers live in `routes/tax-optimizer.ts` and are exported for contract tests.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/api/tax-optimizer/simulate` | Any authenticated | What-if sale simulation — all 4 strategies, ranked by total gain. Params: `asset_symbol`, `quantity`, `wallet_id` (optional) |
+| GET | `/api/tax-optimizer/harvest` | Any authenticated | Ranked unrealized-loss harvest candidates. Params: `min_loss_usd` (default 0), `wallet_id` (optional) |
+| POST | `/api/tax-optimizer/estate-step-up` | Any authenticated | IRC §1014 basis step-up at date of death. Body: `{ wallet_id, step_up_date, asset_symbols? }` |
+
 ### Export
 
 | Method | Path | Auth | Description |
@@ -116,11 +131,12 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 
 ### Library
 
-| Method | Path | Auth |
-|---|---|---|
-| GET / POST / PATCH / DELETE | `/api/citations` | Any authenticated |
-| GET / POST / PATCH | `/api/profiles`, `/api/profiles/:id` | Any authenticated |
-| GET | `/api/profiles/:id/delta` | Any authenticated |
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET / POST / PATCH | `/api/citations` | Any authenticated | POST and PATCH are `ADMIN_ROLES`-gated |
+| DELETE | `/api/citations/:id` | `super_admin` or `reviewer` | Blocked with HTTP 409 if citation is linked to any signed position |
+| GET / POST / PATCH | `/api/profiles`, `/api/profiles/:id` | Any authenticated | |
+| GET | `/api/profiles/:id/delta` | Any authenticated | |
 
 ### Chains & Protocols
 
@@ -139,10 +155,30 @@ All routes except `GET /api/healthz` require a valid Clerk session.
 | GET | `/api/lots` | Any authenticated |
 | POST | `/api/lots` | Any authenticated |
 | GET | `/api/lots/:id` | Any authenticated |
-| PATCH | `/api/lots/:id` | Any authenticated |
-| DELETE | `/api/lots/:id` | Any authenticated |
+| PATCH | `/api/lots/:id` | `ADMIN_ROLES`-gated |
+| DELETE | `/api/lots/:id` | `ADMIN_ROLES`-gated |
 
 Query params for `GET /api/lots`: `wallet_id`, `asset_symbol`, `status` (`open`/`closed`/`partial`), `chain_id`, `limit` (1–200, default 50), `offset` (default 0).
+
+### Exchange Connections (Coinbase, Kraken, Gemini)
+
+Same route shape for each exchange (`{exchange}` = `coinbase` | `kraken` | `gemini`). Sync routes carry `strictLimiter`.
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/{exchange}/connection` | Any authenticated |
+| POST | `/api/{exchange}/connection` | Any authenticated |
+| DELETE | `/api/{exchange}/connection` | Any authenticated |
+| POST | `/api/{exchange}/sync` | Any authenticated |
+
+### Notifications
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/notifications` | Any authenticated |
+| PATCH | `/api/notifications/:id/read` | Any authenticated |
+| POST | `/api/notifications/read-all` | Any authenticated |
+| GET / PATCH | `/api/notifications/preferences` | Any authenticated |
 
 ### Admin
 
@@ -154,6 +190,7 @@ Query params for `GET /api/lots`: `wallet_id`, `asset_symbol`, `status` (`open`/
 | PATCH | `/api/admin/submissions/protocol/:id/approve` | `super_admin` or `reviewer` |
 | PATCH | `/api/admin/submissions/protocol/:id/reject` | `super_admin` or `reviewer` |
 | POST | `/api/admin/registry/refresh` | `super_admin` or `reviewer` |
+| GET | `/api/metrics` | `super_admin` or `reviewer` |
 
 ---
 
@@ -170,8 +207,11 @@ Query params for `GET /api/lots`: `wallet_id`, `asset_symbol`, `status` (`open`/
 | Citations | `/citations` | Searchable IRS authority citations |
 | Profiles | `/profiles` | Versioned treatment rule sets + delta report |
 | Audit Export | `/export` | IRS-Ready Dossier, audit package, pattern report, CPA handoff |
-| Lot Inventory | `/lots` | Full tax lot ledger — cost basis, acquisition date, status filter, paginated; manual entry supported; auto-population from position records planned |
-| Realized-Loss Review | `/harvest` | Realized taxable-disposition losses + wash-sale risk flags (30-day window); not forward-looking unrealized-position analysis |
+| Lot Inventory | `/lots` | Full tax lot ledger — cost basis, acquisition date, status filter, paginated; manual entry and auto-population from position records |
+| Realized-Loss Review | `/harvest` | Realized taxable-disposition losses + wash-sale risk flags (30-day window) |
+| Tax Optimizer | `/tax-optimizer` | Three tabs: What-If Sale Simulator (all 4 strategies ranked), Unrealized-Loss Harvest Candidates (forward-looking), IRC §1014 Estate Basis Step-Up (CoinGecko historical prices) |
+| Connections | `/connections` | Exchange credential entry and sync for Coinbase (CDP + Legacy), Kraken, and Gemini |
+| Notifications | `/notifications/preferences` | Toggle stale/review-queue/sync-error alert preferences |
 | Chain Registry | `/chains` | Supported blockchains and community submissions |
 | Onboarding | `/submissions` | Admin review of chain/protocol submissions |
 
@@ -187,6 +227,7 @@ Automatic classification of on-chain DeFi events into Position Records, without 
 core/
   reviewRules.ts         OPEN_GAP_EVENT_TYPES, computeRequiresReview, isStale — no DB deps
   washSaleDetector.ts    Pure wash-sale detection functions — no DB deps
+  taxOptimizer.ts        simulateSale, compareStrategies, harvestRecommendations, estateStepUp — no DB deps
   createPosition.ts      Shared insert path used by both ingest route and all adapters
   protocolRegistry.ts    Singleton registry; keyed by protocol UUID
   adapters/
@@ -203,21 +244,11 @@ core/
 
 ### Activating Adapters
 
-The registry initializes at server startup and lazily re-initializes on the first classify call. Adapters are 0 until protocol rows exist in the DB:
+The registry initializes at server startup and lazily re-initializes on the first classify call. After seeding, call `POST /api/admin/registry/refresh` — returns `{ adapters: N }` confirming pickup without a server restart.
 
-```sql
--- Example: seed Aave V3 on Ethereum mainnet
-INSERT INTO protocols (id, chain_id, name, slug, ...)
-VALUES (gen_random_uuid(), '<ethereum-chain-id>', 'Aave V3', 'aave_v3', ...);
-```
-
-After seeding, call `POST /api/admin/registry/refresh` — returns `{ adapters: N }` confirming pickup without a server restart.
-
-In practice, run `scripts/seed-protocols.sql` (see below) rather than the manual INSERT — it uses fixed UUIDs and is idempotent.
+Run `scripts/seed-protocols.sql` (idempotent — `ON CONFLICT DO NOTHING`).
 
 ### Seeded Chains & Protocols
-
-`scripts/seed-protocols.sql` is idempotent (`ON CONFLICT DO NOTHING`). Run it manually or let `scripts/post-merge.sh` handle it on merge.
 
 | Protocol | Chain | Protocol UUID |
 |---|---|---|
@@ -253,22 +284,13 @@ The server logs `Protocol registry initialized — adapters: 10` on startup when
 
 ---
 
-## Realized-Loss Review (formerly "Harvest Scanner")
+## Realized-Loss Review
 
 `GET /api/positions/harvest-candidates?tax_year=2024&wallet_id=optional`
 
-**Scope:** This is realized-loss aggregation, not forward-looking unrealized-position analysis. It surfaces positions already classified as `taxable_disposition` — disposals that have already occurred — and flags wash-sale risk among them. It does **not** identify which currently-held lots are underwater or worth selling before year-end; that requires the lot-inventory model (current holdings, cost basis, unrealized P&L per wallet) which is not yet implemented.
+**Scope:** Surfaces already-closed `taxable_disposition` positions sorted by `amount_usd` ascending (largest losses first), each annotated with wash-sale risk within a 30-day window. This is distinct from the Tax Optimizer's Harvest Candidates tab, which surfaces *open lots with unrealized losses*.
 
-Returns all `taxable_disposition` positions for the tax year, sorted by `amount_usd` ascending (largest losses first; null last), each annotated with:
-
-- `wash_sale_risk` — true if another position of the same event type + wallet falls within 30 days
-- `wash_sale_pairs` — array of `{ loss_position_id, gain_position_id, days_between }`
-
-**Note on IRC §1091:** Wash-sale rules apply to stocks and securities. The IRS has not extended them to cryptocurrency. The scanner's flags are conservative practitioner markers — not legal determinations. A disclaimer is embedded in every response.
-
-`amount_usd` is null for positions created before the column was added, or when the adapter/ingest route did not have price data. Populate it via the ingest API to enable dollar-level analysis.
-
-**Next target:** The lot-inventory model — tracking current open positions (cost basis, acquisition date, unrealized gain/loss per wallet) — is the prerequisite for a true forward-looking harvest scanner.
+**Note on IRC §1091:** Wash-sale rules apply to stocks and securities. The IRS has not extended them to cryptocurrency. Flags are conservative practitioner markers — not legal determinations. A disclaimer is embedded in every response.
 
 ---
 
@@ -303,15 +325,19 @@ pnpm --filter @workspace/api-server run test:watch     # watch mode
 pnpm --filter @workspace/api-server run test:coverage  # coverage report
 ```
 
-38 tests across 3 files:
+**253 tests passing across 14 files** (43 additional todo stubs):
 
 | File | What it covers |
 |---|---|
 | `src/test/reviewRules.test.ts` | `OPEN_GAP_EVENT_TYPES` membership, `computeRequiresReview` all rule branches, `isStale` boundary conditions |
 | `src/test/washSale.test.ts` | `detectWashSalePairs` (window boundaries, null wallet/date, gain+gain no-pair), `buildHarvestCandidates` sort order and pair annotation |
 | `src/test/registry.test.ts` | `ProtocolRegistry` init with empty tables, `initialized` flag reset on mid-init failure, `parseTransaction` returns `[]` for null/unknown protocol |
+| `src/test/taxOptimizer.test.ts` | `simulateSale` (all 4 strategies, partial fill, null basis), `compareStrategies` sort stability, `harvestRecommendations`, `estateStepUp` lot filtering |
+| `src/test/taxOptimizerRoutes.test.ts` | Supertest contract tests: snake_case key presence on all three Tax Optimizer HTTP responses; absence of camelCase leakage |
+| `src/test/priceOracle.test.ts` | Cache isolation, `clearCache()` in beforeEach, CoinGecko mock response shapes |
+| *(8 additional files)* | Positions security, lot matching, FIFO wiring, adapter parsing, serializer contracts |
 
-Pure functions (no DB dependencies) live in `core/reviewRules.ts` and `core/washSaleDetector.ts` — testable without mocking.
+Pure functions (no DB dependencies) live in `core/reviewRules.ts`, `core/washSaleDetector.ts`, and `core/taxOptimizer.ts` — testable without mocking.
 
 ---
 
@@ -335,13 +361,19 @@ Pure functions (no DB dependencies) live in `core/reviewRules.ts` and `core/wash
 
 **Two categories of open-gap events, deliberately kept separate.**
 - *IRS-guidance-gap* (lp_deposit, lp_withdrawal, defi_yield, bridge_transfer, staking_reward, nft_sale) — forced review AND surfaced in `/export/comment-letter` as evidence for IRS rulemaking.
-- *Fact-pattern-gap* (aave_withdraw, aave_liquidation) — forced review because lot-matching is needed, not because guidance is pending. These do NOT appear in the comment-letter export, which is specifically for regulatory gaps.
+- *Fact-pattern-gap* (aave_withdraw, aave_liquidation) — forced review because lot-matching is needed, not because guidance is pending. These do NOT appear in the comment-letter export.
 
 **Registry `initialize()` resets `initialized=false` before the async DB calls.** Any mid-init failure leaves the registry in a retryable state. `ensureInitialized()` uses the flag for the lazy-init guard; `initialize()` itself is called directly by the refresh route and bypasses the guard.
 
 **Auth is cookie-based.** Clerk session cookie is the credential; no Bearer tokens from the frontend. CORS is `credentials: true, origin: true`.
 
 **User JIT-provisioning.** On first authenticated request, `requireAuth` inserts a `users` row with role `cpa_partner` if one doesn't exist. To promote: `UPDATE users SET role = 'super_admin' WHERE email = '...'`.
+
+**Tax Optimizer responses are always snake_case.** Core algorithm types use camelCase internally; named serializer functions (`serializeSimulation`, `serializeHarvestRecommendation`, `serializeStepUpLot`, etc.) in `routes/tax-optimizer.ts` handle the conversion. The serializers are exported and tested directly by `taxOptimizerRoutes.test.ts`.
+
+**Citation deletion is cascade-protected.** `DELETE /api/citations/:id` checks for signed positions referencing the citation via `position_citations` JOIN `position_records WHERE reviewer_signoff_at IS NOT NULL`. Returns HTTP 409 with `signed_position_id` if blocked. The DB schema uses `ON DELETE CASCADE`, so the guard is the only thing preventing silent evidentiary-basis loss.
+
+**Exchange secrets are encrypted at rest.** AES-256-GCM with a key derived from `SESSION_SECRET`. The same `encrypt`/`decrypt` functions are used for all three exchanges (Coinbase, Kraken, Gemini) — a fix to `SESSION_SECRET` propagates to all three automatically.
 
 ---
 
@@ -381,7 +413,7 @@ psql $DATABASE_URL -f scripts/seed-protocols.sql
 | `CLERK_SECRET_KEY` | Auto-provisioned by Replit Auth pane |
 | `CLERK_PUBLISHABLE_KEY` | Auto-provisioned by Replit Auth pane |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Auto-provisioned by Replit Auth pane |
-| `SESSION_SECRET` | Set manually as a Replit Secret (any long random string) |
+| `SESSION_SECRET` | Set manually as a Replit Secret (any long random string) — also keys exchange credential encryption |
 
 ---
 
@@ -406,37 +438,23 @@ psql $DATABASE_URL -f scripts/seed-protocols.sql
 - Orval generates `api.ts` (Zod) and `types/` (TS) from the same OpenAPI spec. Inline anonymous request bodies generate the same name in both — fix by extracting to named `$ref` schemas in the spec.
 - `VITE_CLERK_PROXY_URL` is intentionally empty in development. Do not gate on `NODE_ENV`.
 - Tailwind v4 requires `tailwindcss({ optimize: false })` in `vite.config.ts` when Clerk is present, and `@layer theme, base, clerk, components, utilities;` before `@import 'tailwindcss'` in `index.css`.
-
----
-
-## What Was Built (Latest Session)
-
-| Feature | Status |
-|---|---|
-| **Notification bell UI** | `artifacts/basisguard/src/components/notifications/notification-bell.tsx` — bell icon in sidebar footer with unread badge, dropdown panel, mark-all-read |
-| **Notification preferences page** | `/notifications/preferences` route — toggle stale/review-queue/sync-error alerts |
-| **Notifications + exchanges routes mounted** | `routes/index.ts` now mounts `notificationsRouter`, `exchangesRouter`, `metricsRouter` |
-| **Rate limiting + metrics middleware** | `globalLimiter` + `metricsMiddleware` wired into `app.ts`; `GET /api/metrics` admin-only |
-| **DB schema pushed** | `notifications`, `notification_preferences`, `exchange_connections` tables created |
-| **Clerk provisioned** | Replit-managed Clerk set up; all auth keys auto-configured |
+- Price oracle cache is module-level — call `clearCache()` in `beforeEach` in tests or fetch spy never fires.
+- Tax Optimizer route serializers must be used for all three endpoints; the core functions return camelCase and the HTTP contract is snake_case. Do not spread core types directly into `res.json()`.
 
 ---
 
 ## What Is Not Yet Built
 
-| Feature | Blocker |
+| Feature | Notes |
 |---|---|
-| **Coinbase API key entry** | User provides key+secret via UI on the Connections page (`/connections`) — stored encrypted in DB |
-| **Kraken / Gemini live sync testing** | Routes and clients are ready; requires real credentials entered via UI |
-| **FIFO lot matching validation** | `core/lotMatching.ts` is written and wired into `createPosition.ts`; needs real transaction data end-to-end test |
-| **OpenAPI spec for new endpoints** | `/notifications`, `/exchanges`, `/metrics` are implemented but not yet documented in `lib/api-spec/openapi.yaml` |
-| **Cascade protection for citations** | Admin can delete a citation that backs a signed position — `DELETE /api/citations/:id` should block if linked to any signed position |
-| **`/transactions` ingest page** | Frontend page file and App.tsx route were never created; the API (`GET /api/transactions`, `POST /api/transactions/ingest`) exists and works |
-| **Uniswap V3 LP adapters** (Mint, Burn, Collect) | LP deposit/withdrawal treatment is Notice 2024-57 open-gap — adapter is intentionally deferred until guidance issues |
+| **`/transactions` ingest page** | Frontend page and App.tsx route were never created; the API (`GET /api/transactions`, `POST /api/transactions/ingest`, `POST /api/transactions/classify`) exists and works |
+| **FIFO lot matching end-to-end validation** | `core/lotMatching.ts` is written and wired into `createPosition.ts`; needs real transaction data end-to-end test |
+| **OpenAPI spec for new endpoints** | `/notifications`, `/exchanges`, `/metrics`, `/tax-optimizer` are implemented but not yet documented in `lib/api-spec/openapi.yaml` |
+| **Uniswap V3 LP adapters** (Mint, Burn, Collect) | LP deposit/withdrawal treatment is Notice 2024-57 open-gap — intentionally deferred until guidance issues |
 | **Bridge / staking adapters** | Pending IRS guidance; Notice 2024-57 categories |
 | **`amount_usd` backfill** | Positions created before the column existed have `amount_usd=null`; harvest scanner shows them but cannot sort by dollar value |
-| **Basis step-up simulator** | Requires FMV at date-of-death — needs an external price oracle (CoinGecko, Coinmarketcap, or on-chain TWAP) |
-| **Charitable donation FMV calculator** | Same FMV oracle requirement |
+| **Charitable donation FMV calculator** | Requires FMV oracle — same CoinGecko path as estate step-up; not yet wired to a UI |
+| **Kraken / Gemini live sync validation** | Routes, clients, and UI are complete; end-to-end smoke test requires real API credentials |
 
 ---
 

@@ -1,6 +1,6 @@
 # BasisGuard
 
-**Evidence Log & Adaptation Engine for Crypto Tax Compliance**
+**Evidence Log & Tax Optimization Engine for Crypto Tax Compliance**
 
 BasisGuard is a professional tax compliance platform that brings Circular 230 / IRC §6694 standards to every cryptocurrency transaction. Every position is classified with a cited IRS authority, a confidence tier, and a plain-language rationale — and nothing is ever classified without a real citation.
 
@@ -112,6 +112,39 @@ When new IRS guidance modifies the correct treatment of a past event:
 
 ---
 
+## Tax Optimizer (Tier 3)
+
+`/tax-optimizer` — three tools in one page, all backed by the live lot inventory.
+
+### What-If Sale Simulator
+
+`GET /api/tax-optimizer/simulate?asset_symbol=BTC&quantity=0.5&wallet_id=optional`
+
+Runs all four lot-selection strategies against your open lot inventory and ranks them by total tax impact, so you can choose the most advantageous method before executing a sale.
+
+| Strategy | Description |
+|---|---|
+| **FIFO** | First In, First Out — IRS default under Rev. Proc. 2024-28 |
+| **LIFO** | Last In, First Out |
+| **HIFO** | Highest Cost First — minimizes realized gain |
+| **Min Tax** | Long-term lots first (to preserve long-term treatment), then HIFO within each period |
+
+Each strategy result shows short-term gain, long-term gain, total gain, and a full lot-by-lot breakdown. The ranked comparison table highlights the optimal strategy. All responses include an IRC §6694 / Rev. Proc. 2024-28 disclaimer.
+
+### Unrealized-Loss Harvest Candidates
+
+`GET /api/tax-optimizer/harvest?min_loss_usd=0&wallet_id=optional`
+
+Scans open lots with unrealized losses and ranks them by magnitude — a **forward-looking** scanner distinct from the Realized-Loss Review page (which covers already-closed dispositions). Each candidate is annotated with wash-sale risk (conservative practitioner flag; the IRS has not extended IRC §1091 wash-sale rules to cryptocurrency).
+
+### IRC §1014 Estate Basis Step-Up
+
+`POST /api/tax-optimizer/estate-step-up`
+
+Fetches historical prices from CoinGecko at a specified date of death and computes the stepped-up cost basis for every open lot acquired before that date. Results show per-unit original basis alongside FMV at death and total gain eliminated — the two per-unit figures sit side by side for direct comparison. Includes a mandatory IRC §1014 / qualified-appraisal disclaimer.
+
+---
+
 ## Open-Gap Event Types
 
 The following event types have no direct IRS guidance and always require preparer sign-off:
@@ -132,37 +165,19 @@ The following event types have no direct IRS guidance and always require prepare
 - **Stale position flagging** — Reasonable Basis positions older than 180 days are automatically flagged (`is_stale = true`) for re-evaluation. New guidance may have issued.
 - **Tier ceiling enforcement** — The tier suggestion engine prevents classifying a position at a higher tier than its citations can support.
 - **Immutable sign-off** — Once a position is signed, the reviewer name, credential, and timestamp are sealed. Changes require a superseding record.
+- **Citation cascade protection** — `DELETE /api/citations/:id` is blocked with HTTP 409 if the citation backs any signed position. The response includes the blocking `signed_position_id` so the caller knows which positions must be superseded first.
 - **Form 8275 reminder** — All Reasonable Basis positions appear in the CPA Hand-off checklist with an explicit Form 8275 disclosure reminder.
-
----
-
-## Key IRS Authorities
-
-| Citation | Type | Relevance |
-|----------|------|-----------|
-| IRC §1001 | Statute | Gain/loss on disposition — foundational for all crypto trades |
-| IRC §6694 | Statute | Preparer penalty standards — maps directly to confidence tiers |
-| Notice 2014-21 | Notice | Virtual currency is property; each disposition is a realization event |
-| Rev. Rul. 2019-24 | Rev. Rul. | Hard forks and airdrops — ordinary income on receipt with dominion & control |
-| Rev. Rul. 2023-14 | Rev. Rul. | Staking rewards — ordinary income on receipt (cash-basis) |
-| Notice 2023-27 | Notice | NFT look-through analysis for §408(m) collectible determination |
-| Notice 2024-57 | Notice | DeFi open gap acknowledgment; defers LP/yield/staking guidance |
-| Rev. Proc. 2024-28 | Rev. Proc. | Cost basis accounting methods (FIFO/LIFO/SpecID) for crypto |
-| T.D. 10000 (2024) | Treasury Decision | Custodial broker 1099-DA reporting final regulations (exchanges, hosted wallets) — current law |
-| T.D. 10021 (2024) ⚠️ REPEALED | Treasury Decision | DeFi/non-custodial front-end broker rules — repealed by Congress via CRA (H.J. Res. 25, Apr 10 2025); retained as historical reference only |
-| Cottage Savings v. Commissioner | Case | Realization doctrine — material difference test for taxable exchanges |
+- **Credential encryption** — Exchange API secrets are encrypted at rest with AES-256-GCM keyed to `SESSION_SECRET`. Secrets are never logged or returned in plain text after saving.
 
 ---
 
 ## Connections & Data Import
 
-BasisGuard can pull transaction history directly from exchanges, eliminating manual CSV uploads and reducing transcription risk.
+BasisGuard pulls transaction history directly from exchanges, eliminating manual CSV uploads and reducing transcription risk. All credentials are encrypted at rest with AES-256-GCM. The **Connections** page (sidebar → Operations → Connections) provides a UI for all three supported exchanges.
 
-### Coinbase (Legacy API)
+### Coinbase
 
-The **Connections** page (sidebar → Operations → Connections) lets you link a Coinbase account using a standard API Key + Secret generated at [coinbase.com/settings/api](https://www.coinbase.com/settings/api).
-
-**What gets imported on each sync:**
+Supports both **CDP Advanced Trade** keys (JWT/ES256, key name + EC private key in PEM) and **Legacy V2** keys (HMAC, standard key + secret). The key format is detected automatically from the key name.
 
 | Coinbase type | BasisGuard event type | Notes |
 |---|---|---|
@@ -175,26 +190,75 @@ The **Connections** page (sidebar → Operations → Connections) lets you link 
 | `fiat_deposit` / `fiat_withdrawal` | `fiat_deposit` / `fiat_withdrawal` | Non-taxable cash flows |
 | All other types | `coinbase_<type>` | Lands in review queue automatically |
 
-**How it works:**
+Key links: [CDP keys](https://portal.cdp.coinbase.com/access/api) · [Legacy keys](https://www.coinbase.com/settings/api)
 
-- All accounts (crypto wallets) are fetched and paginated in a single sync
+### Kraken
+
+Uses the Kraken REST API v2 Ledger History endpoint. Requires a standard API Key + Private Key (base64) generated with `Query Ledger Entries` permission.
+
+| Kraken ledger type | BasisGuard event type |
+|---|---|
+| `trade` | `taxable_disposition` or `purchase` |
+| `deposit` | `non_taxable_transfer` |
+| `withdrawal` | `non_taxable_transfer` |
+| `staking` | `staking_reward` |
+| Other types | Mapped via `mapKrakenEventType` → review queue |
+
+Key link: [Manage API keys](https://www.kraken.com/u/security/api)
+
+### Gemini
+
+Uses the Gemini REST API to pull trade history and transfer history. Requires a standard API Key + Secret with `Auditor` scope (read-only is sufficient for sync).
+
+| Gemini type | BasisGuard event type |
+|---|---|
+| Trades (buy/sell) | `taxable_disposition` or `purchase` |
+| Deposits | `non_taxable_transfer` |
+| Withdrawals | `non_taxable_transfer` |
+| Earn/Staking | `staking_reward` |
+| Other transfers | Mapped via `mapGeminiEventType` → review queue |
+
+Key link: [Manage API keys](https://exchange.gemini.com/settings/api)
+
+### Common behavior across all exchanges
+
 - Transactions are deduplicated by `tx_hash` — syncing twice never creates duplicates
-- Staking rewards and open-gap events (`wrap_asset`, unknown types) are automatically flagged `requires_review = true` and appear in the Review Queue
-- CEX transactions are stored under a virtual **Coinbase CEX** chain (no on-chain address required)
-- The API Secret is encrypted at rest using AES-256-GCM derived from the server session secret — it is never exposed after saving
+- Staking rewards and open-gap events are automatically flagged `requires_review = true`
+- CEX transactions are stored under a virtual chain row (no on-chain address required)
+- Server-level credentials can be set as Replit Secrets (`COINBASE_API_KEY` / `COINBASE_API_SECRET`); per-user credentials entered via the Connections UI are stored encrypted in the `exchange_connections` table
 
-**Credentials:** API Key and Secret can be set as Replit Secrets (`COINBASE_API_KEY`, `COINBASE_API_SECRET`) for server-wide use, or entered per-user through the Connections UI (stored encrypted in the database).
+---
+
+## Key IRS Authorities
+
+| Citation | Type | Relevance |
+|----------|------|-----------|
+| IRC §1001 | Statute | Gain/loss on disposition — foundational for all crypto trades |
+| IRC §1014 | Statute | Estate basis step-up to FMV at date of death |
+| IRC §6694 | Statute | Preparer penalty standards — maps directly to confidence tiers |
+| Notice 2014-21 | Notice | Virtual currency is property; each disposition is a realization event |
+| Rev. Rul. 2019-24 | Rev. Rul. | Hard forks and airdrops — ordinary income on receipt with dominion & control |
+| Rev. Rul. 2023-14 | Rev. Rul. | Staking rewards — ordinary income on receipt (cash-basis) |
+| Notice 2023-27 | Notice | NFT look-through analysis for §408(m) collectible determination |
+| Notice 2024-57 | Notice | DeFi open gap acknowledgment; defers LP/yield/staking guidance |
+| Rev. Proc. 2024-28 | Rev. Proc. | Cost basis accounting methods (FIFO/LIFO/SpecID) for crypto |
+| T.D. 10000 (2024) | Treasury Decision | Custodial broker 1099-DA reporting final regulations |
+| T.D. 10021 (2024) ⚠️ REPEALED | Treasury Decision | DeFi/non-custodial front-end broker rules — repealed by Congress via CRA (H.J. Res. 25, Apr 10 2025); retained as historical reference only |
+| Cottage Savings v. Commissioner | Case | Realization doctrine — material difference test for taxable exchanges |
 
 ---
 
 ## Technical Stack
 
-- **Frontend**: React + Vite, Tailwind CSS, TanStack Query, wouter, Recharts
+- **Frontend**: React + Vite, Tailwind CSS v4, TanStack Query, wouter, Recharts
 - **API**: Express 5, OpenAPI-first (Orval codegen), Zod validation
-- **Database**: PostgreSQL + Drizzle ORM
+- **Auth**: Clerk (Replit-managed tenant) — cookie-based sessions, JIT user provisioning
+- **Database**: PostgreSQL 16 + Drizzle ORM
+- **EVM decoding**: viem 2 (`decodeEventLog`, public client for receipt fetching)
+- **Price oracle**: CoinGecko (current prices via `/simple/price`; historical via `/coins/{id}/history`)
 - **Monorepo**: pnpm workspaces
 
-For developer setup and architecture details, see [`replit.md`](./replit.md).
+For developer setup, architecture details, and all API routes, see [`replit.md`](./replit.md).
 
 ---
 
