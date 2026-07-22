@@ -730,7 +730,12 @@ function EstateTab() {
                         <td className="px-4 py-3 font-mono text-muted-foreground text-[11px]">{l.lot_id.slice(0, 8)}…</td>
                         <td className="px-4 py-3 font-mono font-bold text-foreground">{l.asset_symbol}</td>
                         <td className="px-4 py-3 font-mono text-muted-foreground">{fmtNum(l.quantity, 8)}</td>
-                        <td className="px-4 py-3 font-mono text-muted-foreground">{fmtUsd(l.original_cost_basis_usd)}</td>
+                        <td className="px-4 py-3 font-mono text-muted-foreground">
+                          <div>{l.original_cost_basis_per_unit_usd != null ? fmtUsd(l.original_cost_basis_per_unit_usd) + "/unit" : "—"}</div>
+                          {l.original_cost_basis_usd != null && (
+                            <div className="text-[10px] text-muted-foreground/50 mt-0.5">{fmtUsd(l.original_cost_basis_usd)} total</div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 font-mono">{l.step_up_price_usd != null ? fmtUsd(l.step_up_price_usd) + "/unit" : "—"}</td>
                         <td className="px-4 py-3 font-mono font-semibold text-foreground">{fmtUsd(l.stepped_up_cost_basis_usd)}</td>
                         <td className={`px-4 py-3 font-mono font-semibold ${gainClass(l.gain_eliminated_usd)}`}>
