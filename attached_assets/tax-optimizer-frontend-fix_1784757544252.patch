@@ -1,0 +1,190 @@
+diff --git a/artifacts/basisguard/src/pages/tax-optimizer.tsx b/artifacts/basisguard/src/pages/tax-optimizer.tsx
+index 40c046a..c0b8705 100644
+--- a/artifacts/basisguard/src/pages/tax-optimizer.tsx
++++ b/artifacts/basisguard/src/pages/tax-optimizer.tsx
+@@ -61,37 +61,37 @@ type Tab = "simulate" | "harvest" | "estate";
+ // ── Simulate tab ──────────────────────────────────────────────────────────────
+ 
+ interface ConsumedLot {
+-  lotId: string;
+-  quantityConsumed: number;
+-  costBasisUsd: number | null;
+-  proceedsUsd: number;
+-  gainLossUsd: number | null;
+-  holdingDays: number;
+-  holdingPeriod: "short_term" | "long_term";
++  lot_id: string;
++  quantity_consumed: number;
++  cost_basis_usd: number | null;
++  proceeds_usd: number;
++  gain_loss_usd: number | null;
++  holding_days: number;
++  holding_period: "short_term" | "long_term";
+ }
+ 
+ interface SimulationResult {
+-  assetSymbol: string;
+-  quantityRequested: number;
+-  quantityAvailable: number;
+-  quantityFillable: number;
+-  currentPriceUsd: number;
++  asset_symbol: string;
++  quantity_requested: number;
++  quantity_available: number;
++  quantity_fillable: number;
++  current_price_usd: number;
+   strategy: string;
+-  lotsConsumed: ConsumedLot[];
+-  totalProceedsUsd: number;
+-  totalCostBasisUsd: number | null;
+-  shortTermGainUsd: number | null;
+-  longTermGainUsd: number | null;
+-  totalGainUsd: number | null;
++  lots_consumed: ConsumedLot[];
++  total_proceeds_usd: number;
++  total_cost_basis_usd: number | null;
++  short_term_gain_usd: number | null;
++  long_term_gain_usd: number | null;
++  total_gain_usd: number | null;
+   warning: string | null;
+ }
+ 
+ interface StrategyComparison {
+   strategy: string;
+-  totalGainUsd: number | null;
+-  shortTermGainUsd: number | null;
+-  longTermGainUsd: number | null;
+-  totalProceedsUsd: number;
++  total_gain_usd: number | null;
++  short_term_gain_usd: number | null;
++  long_term_gain_usd: number | null;
++  total_proceeds_usd: number;
+ }
+ 
+ interface SimulateResponse {
+@@ -217,7 +217,7 @@ function SimulateTab() {
+               {
+                 label: "Best Strategy",
+                 value: STRATEGY_META[bestStrategy?.strategy ?? ""]?.label ?? "—",
+-                sub: fmtUsd(bestStrategy?.totalGainUsd, { always: true }) + " gain",
++                sub: fmtUsd(bestStrategy?.total_gain_usd, { always: true }) + " gain",
+               },
+             ].map((m) => (
+               <div key={m.label} className="rounded border border-border/40 bg-muted/20 p-3 text-center">
+@@ -275,16 +275,16 @@ function SimulateTab() {
+                             <div className="font-mono font-semibold text-foreground">{STRATEGY_META[s.strategy]?.label}</div>
+                             <div className="font-mono text-[10px] text-muted-foreground/60">{STRATEGY_META[s.strategy]?.description}</div>
+                           </td>
+-                          <td className={`px-4 py-3 font-mono font-semibold ${gainClass(s.shortTermGainUsd)}`}>
+-                            {fmtUsd(s.shortTermGainUsd, { always: true })}
++                          <td className={`px-4 py-3 font-mono font-semibold ${gainClass(s.short_term_gain_usd)}`}>
++                            {fmtUsd(s.short_term_gain_usd, { always: true })}
+                           </td>
+-                          <td className={`px-4 py-3 font-mono font-semibold ${gainClass(s.longTermGainUsd)}`}>
+-                            {fmtUsd(s.longTermGainUsd, { always: true })}
++                          <td className={`px-4 py-3 font-mono font-semibold ${gainClass(s.long_term_gain_usd)}`}>
++                            {fmtUsd(s.long_term_gain_usd, { always: true })}
+                           </td>
+-                          <td className={`px-4 py-3 font-mono font-bold ${gainClass(s.totalGainUsd)}`}>
+-                            {fmtUsd(s.totalGainUsd, { always: true })}
++                          <td className={`px-4 py-3 font-mono font-bold ${gainClass(s.total_gain_usd)}`}>
++                            {fmtUsd(s.total_gain_usd, { always: true })}
+                           </td>
+-                          <td className="px-4 py-3 font-mono text-foreground/80">{fmtUsd(s.totalProceedsUsd)}</td>
++                          <td className="px-4 py-3 font-mono text-foreground/80">{fmtUsd(s.total_proceeds_usd)}</td>
+                           <td className="px-4 py-3 text-muted-foreground">
+                             {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                           </td>
+@@ -304,20 +304,20 @@ function SimulateTab() {
+                                   </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-border/10">
+-                                  {full.lotsConsumed.map((c) => (
+-                                    <tr key={c.lotId} className="hover:bg-muted/10">
+-                                      <td className="px-3 py-2 font-mono text-muted-foreground text-[11px]">{c.lotId.slice(0, 8)}…</td>
+-                                      <td className="px-3 py-2 font-mono">{fmtNum(c.quantityConsumed, 8)}</td>
+-                                      <td className="px-3 py-2 font-mono text-muted-foreground">{c.holdingDays}d</td>
++                                  {full.lots_consumed.map((c) => (
++                                    <tr key={c.lot_id} className="hover:bg-muted/10">
++                                      <td className="px-3 py-2 font-mono text-muted-foreground text-[11px]">{c.lot_id.slice(0, 8)}…</td>
++                                      <td className="px-3 py-2 font-mono">{fmtNum(c.quantity_consumed, 8)}</td>
++                                      <td className="px-3 py-2 font-mono text-muted-foreground">{c.holding_days}d</td>
+                                       <td className="px-3 py-2">
+-                                        <Badge variant="outline" className={`text-[10px] font-mono ${c.holdingPeriod === "long_term" ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}>
+-                                          {c.holdingPeriod === "long_term" ? "LT" : "ST"}
++                                        <Badge variant="outline" className={`text-[10px] font-mono ${c.holding_period === "long_term" ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}>
++                                          {c.holding_period === "long_term" ? "LT" : "ST"}
+                                         </Badge>
+                                       </td>
+-                                      <td className="px-3 py-2 font-mono">{fmtUsd(c.proceedsUsd)}</td>
+-                                      <td className="px-3 py-2 font-mono text-muted-foreground">{fmtUsd(c.costBasisUsd)}</td>
+-                                      <td className={`px-3 py-2 font-mono font-semibold ${gainClass(c.gainLossUsd)}`}>
+-                                        {fmtUsd(c.gainLossUsd, { always: true })}
++                                      <td className="px-3 py-2 font-mono">{fmtUsd(c.proceeds_usd)}</td>
++                                      <td className="px-3 py-2 font-mono text-muted-foreground">{fmtUsd(c.cost_basis_usd)}</td>
++                                      <td className={`px-3 py-2 font-mono font-semibold ${gainClass(c.gain_loss_usd)}`}>
++                                        {fmtUsd(c.gain_loss_usd, { always: true })}
+                                       </td>
+                                     </tr>
+                                   ))}
+@@ -348,18 +348,19 @@ function SimulateTab() {
+ // ── Harvest tab ───────────────────────────────────────────────────────────────
+ 
+ interface HarvestRecommendation {
+-  lotId: string;
+-  walletId: string;
+-  assetSymbol: string;
++  lot_id: string;
++  wallet_id: string;
++  asset_symbol: string;
+   quantity: number;
+-  costBasisUsd: number | null;
+-  currentPriceUsd: number;
+-  currentValueUsd: number;
+-  unrealizedLossUsd: number;
+-  holdingDays: number;
+-  holdingPeriod: "short_term" | "long_term";
+-  proceedsIfSoldUsd: number;
+-  washSaleRisk: boolean;
++  cost_basis_usd: number | null;
++  cost_basis_per_unit_usd: number | null;
++  current_price_usd: number;
++  current_value_usd: number;
++  unrealized_loss_usd: number;
++  holding_days: number;
++  holding_period: "short_term" | "long_term";
++  proceeds_if_sold_usd: number;
++  wash_sale_risk: boolean;
+ }
+ 
+ interface HarvestResponse {
+@@ -499,20 +500,20 @@ function HarvestTab() {
+                   </thead>
+                   <tbody className="divide-y divide-border/20">
+                     {result.candidates.map((c) => (
+-                      <tr key={c.lotId} className={`hover:bg-muted/10 ${c.washSaleRisk ? "bg-amber-500/3" : ""}`}>
+-                        <td className="px-4 py-3 font-mono font-bold text-foreground">{c.assetSymbol}</td>
++                      <tr key={c.lot_id} className={`hover:bg-muted/10 ${c.wash_sale_risk ? "bg-amber-500/3" : ""}`}>
++                        <td className="px-4 py-3 font-mono font-bold text-foreground">{c.asset_symbol}</td>
+                         <td className="px-4 py-3 font-mono text-muted-foreground">{fmtNum(c.quantity, 8)}</td>
+-                        <td className="px-4 py-3 font-mono text-muted-foreground">{c.costBasisUsd != null ? fmtUsd(c.costBasisUsd / c.quantity) : "—"}</td>
+-                        <td className="px-4 py-3 font-mono">{fmtUsd(c.currentPriceUsd)}</td>
+-                        <td className="px-4 py-3 font-mono">{fmtUsd(c.currentValueUsd)}</td>
+-                        <td className="px-4 py-3 font-mono font-bold text-red-400">−{fmtUsd(c.unrealizedLossUsd)}</td>
++                        <td className="px-4 py-3 font-mono text-muted-foreground">{c.cost_basis_usd != null ? fmtUsd(c.cost_basis_usd / c.quantity) : "—"}</td>
++                        <td className="px-4 py-3 font-mono">{fmtUsd(c.current_price_usd)}</td>
++                        <td className="px-4 py-3 font-mono">{fmtUsd(c.current_value_usd)}</td>
++                        <td className="px-4 py-3 font-mono font-bold text-red-400">−{fmtUsd(c.unrealized_loss_usd)}</td>
+                         <td className="px-4 py-3">
+-                          <Badge variant="outline" className={`text-[10px] font-mono ${c.holdingPeriod === "long_term" ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}>
+-                            {c.holdingPeriod === "long_term" ? "LT" : "ST"} · {c.holdingDays}d
++                          <Badge variant="outline" className={`text-[10px] font-mono ${c.holding_period === "long_term" ? "border-green-500/30 text-green-400" : "border-amber-500/30 text-amber-400"}`}>
++                            {c.holding_period === "long_term" ? "LT" : "ST"} · {c.holding_days}d
+                           </Badge>
+                         </td>
+                         <td className="px-4 py-3">
+-                          {c.washSaleRisk ? (
++                          {c.wash_sale_risk ? (
+                             <div className="flex items-center gap-1">
+                               <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                               <span className="text-amber-400 font-mono text-[10px] uppercase tracking-wider">Risk</span>

@@ -1,0 +1,17 @@
+Now the harvest recommendations table:
+
+Now checking the `HarvestRecommendation` and `StepUpLot` interfaces for the same issue:
+
+Now checking `StepUpLot` — the one section that already read correctly, but worth confirming its interface matches too:
+
+Clean sweep confirmed. Let me generate the patch:
+
+Found the actual gap — and it's exactly where the quota cutoff would predict.
+
+**The backend work is genuinely solid, and better than what I'd built.** All three routes consistently serialize to snake_case now, backed by a real contract test (`taxOptimizerRoutes.test.ts`) that explicitly asserts the snake_case keys exist *and* that the old camelCase ones don't — a well-designed regression guard. The route design is also better than mine in a few concrete ways: one `GET /simulate` endpoint with an optional `strategy` param instead of two separate ones, real disclaimers baked into every response instead of just harvest, an `unavailable_prices` field flagging exactly which symbols failed historical lookup, and explicit `Number()` coercion on DB values that my version skipped. Worth saying plainly.
+
+**But the frontend migration to match it was incomplete — not everywhere, specifically two of the three tabs.** I checked field-by-field: the Estate tab (the one that triggered the original reviewer finding) was correctly fixed end-to-end, interface and all. The Compare Strategies tab and the Harvest Recommendations tab were not — both the local TypeScript interfaces (`ConsumedLot`, `SimulationResult`, `StrategyComparison`, `HarvestRecommendation`) and every field access in those two tables still referenced the pre-migration camelCase names (`totalGainUsd`, `assetSymbol`, `washSaleRisk`, etc.), while the backend was actually sending `total_gain_usd`, `asset_symbol`, `wash_sale_risk`. That's not a cosmetic mismatch — every gain figure, every lot in the expanded breakdown, and the entire harvest candidates table would have rendered blank or `undefined` in the running app, on the two tabs that never got exercised before the quota ran out.
+
+**Fixed both tabs completely** — every property access across the Strategy Comparison table (including the nested lot-breakdown sub-table) and the Harvest Recommendations table, plus the four TypeScript interfaces backing them, now match the real snake_case contract exactly. Confirmed zero camelCase leftovers with a full sweep afterward.
+
+This is the same lesson as the citation-cascade and immutability findings a few turns back: a fix that lands correctly on the piece being actively reviewed doesn't automatically propagate to the pieces sitting quietly nearby. Tier 3 is now genuinely complete and consistent end to end — want the frontend nice-to-have I skipped (adding the missing `cost_basis_per_unit_usd`/`original_cost_basis_per_unit_usd` fields to the type definitions, unused but present on the backend), or is that fine to leave as-is?
