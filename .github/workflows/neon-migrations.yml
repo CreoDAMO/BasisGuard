@@ -1,5 +1,8 @@
 name: Neon Database Migrations
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -36,6 +39,9 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       github.event.action != 'closed'
+    permissions:
+      contents: read
+      pull-requests: write
     runs-on: ubuntu-latest
     outputs:
       db_url: ${{ steps.neon-branch.outputs.db_url }}
