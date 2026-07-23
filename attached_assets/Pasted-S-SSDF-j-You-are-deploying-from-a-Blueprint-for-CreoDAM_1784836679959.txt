@@ -1,3 +1,28 @@
+S
+SSDF
+
+
+j
+You are deploying from a Blueprint for CreoDAMO/BasisGuard
+Blueprint Name
+A unique name for your Blueprint.
+BasisGuard
+Branch
+The repository branch with the render.yaml file.
+main
+
+Blueprint PathOptional
+The path to the Blueprint file in your repo (e.g., infra/render.yaml). Defaults to render.yaml at the root of your repository.
+render.yaml
+Review Blueprint configurations from CreoDAMO/BasisGuard.
+All future updates to your Blueprint file will be synced automatically, which may change your costs.
+A Blueprint file was found, but there was an issue.
+
+services[0]
+pre-deploy command is not supported for free tier services
+services[1]
+static sites cannot have a region
+
 # Render deployment configuration for BasisGuard
 # https://render.com/docs/blueprint-spec
 #
@@ -6,9 +31,7 @@
 #   2. basisguard-web   — React/Vite frontend (Static Site, free tier)
 #
 # Database: Neon PostgreSQL (permanent free tier, no Render DB needed).
-#   Migrations run at the end of buildCommand (free tier does not support
-#   preDeployCommand — migrations are idempotent so running them in the build
-#   step is safe).
+#   Migrations run automatically via preDeployCommand before every deploy.
 #
 # One-time setup after first deploy:
 #   - Seed the database:
@@ -23,7 +46,6 @@
 #   https://dashboard.clerk.com → <your app> → User & Authentication → Social Connections
 #   LinkedIn uses built-in OAuth. Coinbase requires a custom OAuth provider
 #   (Client ID + Secret from https://www.coinbase.com/settings/api).
-
 services:
   # ── API Server ──────────────────────────────────────────────────────────────
   - type: web
@@ -32,15 +54,12 @@ services:
     region: oregon
     plan: free
     rootDir: .
-    # Migrations run at the end of the build step.
-    # drizzle-kit push is idempotent — safe to run on every deploy.
-    buildCommand: >-
-      npm install -g pnpm &&
-      pnpm install --no-frozen-lockfile &&
-      pnpm --filter @workspace/api-server run build &&
-      pnpm db:push
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
     startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
     healthCheckPath: /api/healthz
+    # Runs Drizzle migrations against Neon before the new version goes live.
+    # Safe to re-run: drizzle-kit push is idempotent.
+    preDeployCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm db:push
     envVars:
       - key: NODE_ENV
         value: production
@@ -56,18 +75,14 @@ services:
         sync: false   # set in Render dashboard → Environment
       - key: SESSION_SECRET
         sync: false   # set in Render dashboard → Environment
-
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
-  # Note: static sites do not support a region field.
   - type: web
     name: basisguard-web
     runtime: static
+    region: oregon
     plan: free
     rootDir: .
-    buildCommand: >-
-      npm install -g pnpm &&
-      pnpm install --no-frozen-lockfile &&
-      pnpm --filter @workspace/basisguard run build
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/basisguard run build
     staticPublishPath: artifacts/basisguard/dist/public   # matches vite.config.ts build.outDir
     headers:
       - path: /*
@@ -84,3 +99,8 @@ services:
         sync: false   # same value as CLERK_PUBLISHABLE_KEY
       - key: VITE_CLERK_PROXY_URL
         sync: false   # set to: https://basisguard-api.onrender.com/api/__clerk
+Retry
+0 services selected:
+
+Move
+
