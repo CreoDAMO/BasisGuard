@@ -62,7 +62,6 @@ services:
   - type: web
     name: basisguard-web
     runtime: static
-    plan: free
     rootDir: .
     buildCommand: >-
       npm install -g pnpm &&
