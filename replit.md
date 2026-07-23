@@ -28,7 +28,7 @@ lib/
 | Runtime | Node.js 20, TypeScript 5.9 |
 | Frontend | React 18, Vite, Tailwind CSS v4, wouter, TanStack Query, Recharts |
 | API | Express 5 |
-| Auth | Clerk (`@clerk/express` + `@clerk/react`) — Replit-managed tenant |
+| Auth | Clerk (`@clerk/express` + `@clerk/react`) — external tenant (your own Clerk dashboard) |
 | Database | PostgreSQL 16 + Drizzle ORM |
 | Validation | Zod v4, drizzle-zod |
 | API codegen | Orval (generates typed hooks + Zod schemas from `lib/api-spec/openapi.yaml`) |
@@ -407,23 +407,62 @@ psql $DATABASE_URL -f scripts/seed-protocols.sql
 
 ## Required Environment Variables
 
-| Variable | How it gets set |
+### Backend (API Server)
+
+| Variable | Where to set |
 |---|---|
-| `DATABASE_URL` | Runtime-managed by Replit — do not set manually |
-| `CLERK_SECRET_KEY` | Auto-provisioned by Replit Auth pane |
-| `CLERK_PUBLISHABLE_KEY` | Auto-provisioned by Replit Auth pane |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Auto-provisioned by Replit Auth pane |
-| `SESSION_SECRET` | Set manually as a Replit Secret (any long random string) — also keys exchange credential encryption |
+| `DATABASE_URL` | Runtime-managed by Replit (dev) / Render PostgreSQL or external (prod) |
+| `CLERK_SECRET_KEY` | Replit Secret (dev) / Render Environment (prod) — from Clerk dashboard |
+| `CLERK_PUBLISHABLE_KEY` | Replit Secret (dev) / Render Environment (prod) — from Clerk dashboard |
+| `SESSION_SECRET` | Replit Secret (dev) / Render Environment (prod) — any long random string; also keys AES-256-GCM exchange credential encryption |
+
+### Frontend (Static Site — build-time)
+
+| Variable | Where to set |
+|---|---|
+| `VITE_CLERK_PUBLISHABLE_KEY` | Replit Secret (dev, copied automatically) / Render Environment (prod) — same value as `CLERK_PUBLISHABLE_KEY` |
+| `VITE_CLERK_PROXY_URL` | Empty in dev (intentional). On Render set to `https://<api-service>.onrender.com/api/__clerk` |
 
 ---
 
 ## Replit First-Time Setup
 
-1. **Clerk** is provisioned automatically by the Replit Auth pane — no manual key entry.
-2. **Schema** is pushed automatically by `scripts/post-merge.sh` (runs on task-agent merges). Manual: `pnpm --filter @workspace/db run push`.
-3. **Citations** are seeded by the post-merge hook. Manual: `psql $DATABASE_URL -f scripts/seed-citations.sql`.
-4. **Chains & Protocols** are seeded by the post-merge hook. Manual: `psql $DATABASE_URL -f scripts/seed-protocols.sql`.
-5. **SESSION_SECRET** must be added as a Replit Secret.
+1. **Clerk** — add `CLERK_SECRET_KEY` and `CLERK_PUBLISHABLE_KEY` as Replit Secrets (from https://dashboard.clerk.com).
+2. **Schema** — `pnpm --filter @workspace/db run push` (or runs automatically via `scripts/post-merge.sh`).
+3. **Citations** — `psql $DATABASE_URL -f scripts/seed-citations.sql`
+4. **Chains & Protocols** — `psql $DATABASE_URL -f scripts/seed-protocols.sql`
+5. **SESSION_SECRET** — add as a Replit Secret.
+
+---
+
+## Render Deployment
+
+`render.yaml` at the repo root defines two services (API web service + static site frontend). Before deploying:
+
+1. Create a PostgreSQL database in Render and copy the connection string.
+2. In the Render dashboard set these environment variables on **basisguard-api**:
+   - `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `SESSION_SECRET`, `DATABASE_URL`
+3. Set these on **basisguard-web** (build-time):
+   - `VITE_CLERK_PUBLISHABLE_KEY` (same as publishable key)
+   - `VITE_CLERK_PROXY_URL` = `https://basisguard-api.onrender.com/api/__clerk`
+4. After first deploy, SSH into the API service shell and run:
+   ```bash
+   psql $DATABASE_URL -f scripts/seed-citations.sql
+   psql $DATABASE_URL -f scripts/seed-protocols.sql
+   ```
+
+---
+
+## LinkedIn & Coinbase OAuth (Clerk Dashboard)
+
+Both are configured entirely in the Clerk dashboard — no code changes required.
+
+- **LinkedIn**: Dashboard → User & Authentication → Social Connections → Enable LinkedIn
+- **Coinbase**: Dashboard → User & Authentication → Social Connections → Add Custom Provider
+  - OAuth 2.0 app credentials from https://www.coinbase.com/settings/api
+  - Authorization URL: `https://www.coinbase.com/oauth/authorize`
+  - Token URL: `https://api.coinbase.com/oauth/token`
+  - Scopes: `wallet:user:read,wallet:user:email`
 
 > **Note:** `pnpm --filter @workspace/db run seed` requires Node 24 (`--experimental-strip-types`). The Replit environment runs Node 20 — use the SQL file above instead.
 

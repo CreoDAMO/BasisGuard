@@ -1,18 +1,16 @@
 /**
  * Clerk Frontend API Proxy Middleware
  *
- * Proxies Clerk Frontend API requests through your domain, enabling Clerk
- * authentication on custom domains and .replit.app deployments without
- * requiring CNAME DNS configuration.
- *
- * AUTH CONFIGURATION: To manage users, enable/disable login providers
- * (Google, GitHub, etc.), change app branding, or configure OAuth credentials,
- * use the Auth pane in the workspace toolbar. There is no external Clerk
- * dashboard — all auth configuration is done through the Auth pane.
+ * Proxies Clerk Frontend API requests through your API domain, so Clerk works
+ * without requiring a CNAME DNS record pointing to Clerk's Frontend API.
+ * Configure login providers (Google, LinkedIn, Coinbase, etc.) and OAuth
+ * credentials in your Clerk dashboard at https://dashboard.clerk.com.
  *
  * IMPORTANT:
  * - Only active in production (Clerk proxying doesn't work for dev instances)
  * - Must be mounted BEFORE express.json() middleware
+ * - On Render: set VITE_CLERK_PROXY_URL=https://<api>.onrender.com/api/__clerk
+ *   as a build-time env var on the frontend static-site service
  *
  * Usage in app.ts:
  *   import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";

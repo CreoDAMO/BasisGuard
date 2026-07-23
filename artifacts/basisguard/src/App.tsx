@@ -7,7 +7,6 @@ import {
   useClerk,
   useAuth,
 } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
 import { dark } from "@clerk/themes";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -35,16 +34,11 @@ import { Link } from "wouter";
 
 // ── Clerk config ────────────────────────────────────────────────────────────
 
-// REQUIRED — copy verbatim. Resolves key from hostname so same build serves
-// multiple Clerk custom domains. Do not inline the env var directly.
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
-// REQUIRED — copy verbatim. Empty in dev (intentional), auto-set in prod.
-// Do NOT gate on NODE_ENV — empty dev value is intentional.
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+// Empty in dev (intentional). On Render set VITE_CLERK_PROXY_URL to
+// https://<api-service>.onrender.com/api/__clerk as a build-time env var.
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
