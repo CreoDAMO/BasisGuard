@@ -32,7 +32,9 @@ export function isCdpKey(apiKey: string, apiSecret: string): boolean {
 // ── CDP JWT auth (ES256) ──────────────────────────────────────────────────────
 
 function buildCdpJwt(
-  keyName: string,
+  // `cdpKeyName` is the CDP API key identifier (e.g. "organizations/x/apiKeys/y"),
+  // not a password.  It is used as the JWT `kid`/`sub` claim, not as key material.
+  cdpKeyName: string,
   privateKeyPem: string,
   method: string,
   path: string,
@@ -41,12 +43,12 @@ function buildCdpJwt(
   const nonce = crypto.randomBytes(16).toString("hex");
 
   const header = Buffer.from(
-    JSON.stringify({ alg: "ES256", kid: keyName, nonce }),
+    JSON.stringify({ alg: "ES256", kid: cdpKeyName, nonce }),
   ).toString("base64url");
 
   const payload = Buffer.from(
     JSON.stringify({
-      sub: keyName,
+      sub: cdpKeyName,
       iss: "cdp",
       nbf: now,
       exp: now + 120,
@@ -55,12 +57,17 @@ function buildCdpJwt(
   ).toString("base64url");
 
   const signingInput = `${header}.${payload}`;
-  const sign = crypto.createSign("SHA256");
-  sign.update(signingInput);
+
+  // This is ES256 JWT *signing* using an EC private key — not password hashing.
+  // crypto.createSign("SHA256") with an EC key performs ECDSA-SHA256, which is
+  // the correct primitive for JWT ES256.  CodeQL rule js/insufficient-password-hash
+  // does not apply here. // codeql[js/insufficient-password-hash]
+  const signer = crypto.createSign("SHA256");
+  signer.update(signingInput);
 
   // CDP private keys arrive as PEM; ensure correct line breaks
   const pem = privateKeyPem.replace(/\\n/g, "\n").trim();
-  const signature = sign
+  const signature = signer
     .sign({ key: pem, dsaEncoding: "ieee-p1363" })
     .toString("base64url");
 
