@@ -1,0 +1,39 @@
+name: Keep Render Alive
+
+# Pings the BasisGuard API health endpoint every 10 minutes to prevent
+# Render free-tier cold starts. GitHub Actions schedules run in UTC.
+#
+# Note: GitHub may throttle or skip scheduled runs on inactive repos.
+# For a more reliable alternative, configure the same URL as a monitor
+# in cron-job.org, UptimeRobot, or BetterUptime — no secrets needed
+# since /api/healthz is public.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  # Allow manual trigger from the Actions tab for testing
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API health endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            https://basisguard-api.onrender.com/api/healthz)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::warning::Health check returned $STATUS (expected 200)"
+          fi
+
+      - name: Ping frontend
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            https://basisguard-web.onrender.com/)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::warning::Frontend returned $STATUS (expected 200)"
+          fi
