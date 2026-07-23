@@ -294,7 +294,7 @@ describe("estate-step-up route serialization contract", () => {
     expect(lotRow).not.toHaveProperty("lotId");
     expect(lotRow).not.toHaveProperty("assetSymbol");
     expect(lotRow).not.toHaveProperty("originalCostBasisUsd");
-    expect(lotRow).not.toHaveProperty("gainEliminatedUsd".replace("Usd", "Usd")); // kept for clarity
+    expect(lotRow).not.toHaveProperty("gainEliminatedUsd"); // kept for clarity
   });
 
   it("computed values are correct after serialization", () => {
