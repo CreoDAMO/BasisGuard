@@ -29,6 +29,7 @@ import LotsPage from "./pages/lots";
 import ConnectionsPage from "./pages/connections";
 import NotificationPreferencesPage from "./pages/notification-preferences";
 import TaxOptimizerPage from "./pages/tax-optimizer";
+import TransactionsPage from "./pages/transactions";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
@@ -225,6 +226,7 @@ function AppRoutes() {
         <Route path="/connections" component={ConnectionsPage} />
         <Route path="/notifications/preferences" component={NotificationPreferencesPage} />
         <Route path="/tax-optimizer" component={TaxOptimizerPage} />
+        <Route path="/transactions" component={TransactionsPage} />
         <Route component={NotFound} />
       </Switch>
     </ProtectedPage>
