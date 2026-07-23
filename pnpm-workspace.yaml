@@ -43,6 +43,9 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Security: force patched versions (CVE fixes)
+  fast-uri: '>=3.1.4'   # host-confusion via backslash (GHSA); affects undici/fetch policy checks
+  js-yaml: '>=4.3.0'    # quadratic CPU on merge-key chains (CVE-2026-59869)
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
