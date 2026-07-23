@@ -1,0 +1,166 @@
+Great. We'll add a docs/github-workflows/ folder with the workflow YAML files you can manually copy to .github/workflows/ after pushing your code. This way you don't need to commit the workflows from Replit — just copy them locally or via GitHub's web UI.
+
+Below is the complete set of files you need, plus the final render.yaml.
+
+---
+
+📁 docs/github-workflows/README.md
+
+```markdown
+# GitHub Workflows for BasisGuard
+
+Copy the YAML files from this folder to `.github/workflows/` in your repository.
+
+- `neon-migrations.yml` – runs Drizzle migrations on every push to `main`.
+- `keep-alive.yml` – pings Render API every 10 minutes to prevent cold starts.
+
+You can also create these workflows manually in the GitHub Actions tab.
+```
+
+---
+
+📁 docs/github-workflows/neon-migrations.yml
+
+```yaml
+name: Neon Database Migrations
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run Drizzle migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm db:push
+```
+
+---
+
+📁 docs/github-workflows/keep-alive.yml
+
+```yaml
+name: Keep Render Alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # every 10 minutes
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" https://basisguard-api.onrender.com/api/healthz
+```
+
+---
+
+📁 render.yaml (Final Corrected Version)
+
+```yaml
+# Render Blueprint – Deploys BasisGuard API + Frontend
+# Uses Neon PostgreSQL (permanently free) – no Render DB needed.
+#
+# Environment variables (set in Render Dashboard):
+#   DATABASE_URL              – from Neon Console → Connection Details
+#   CLERK_SECRET_KEY          – from Clerk dashboard
+#   CLERK_PUBLISHABLE_KEY     – from Clerk dashboard
+#   SESSION_SECRET            – generate a strong random string
+#   VITE_CLERK_PUBLISHABLE_KEY – same as CLERK_PUBLISHABLE_KEY
+#   VITE_CLERK_PROXY_URL      – https://basisguard-api.onrender.com/api/__clerk
+
+services:
+  # ── API Server ──────────────────────────────────────────────────────────────
+  - type: web
+    name: basisguard-api
+    runtime: node
+    region: oregon
+    plan: free                     # ✅ Free tier
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    preDeployCommand: pnpm db:push   # ✅ Runs migrations before starting
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: DATABASE_URL
+        sync: false                 # Set in Dashboard from Neon
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: NODE_VERSION
+        value: 20.12.0              # ✅ Pin Node.js version
+
+  # ── Frontend (Static Site) ──────────────────────────────────────────────────
+  - type: web
+    name: basisguard-web
+    runtime: static
+    region: oregon
+    plan: free                     # ✅ Free tier
+    rootDir: .
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/basisguard run build
+    staticPublishPath: artifacts/basisguard/dist   # ✅ Correct path
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: BASE_PATH
+        value: /
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_CLERK_PROXY_URL
+        sync: false
+```
+
+---
+
+✅ Updated Deployment Checklist
+
+Step Action
+0 Push code to GitHub (this includes the docs/ folder but NOT the .github/workflows/ – you'll add those manually).
+1 Manually create the workflows in GitHub Actions by copying the YAMLs from docs/github-workflows/ to .github/workflows/ via the GitHub web UI or local commit.
+2 Wait for Neon migration workflow to run (or run pnpm db:push manually if needed).
+3 In Render Dashboard, create the two services (API and Web) using the Blueprint above or copy render.yaml to your repo root.
+4 Set environment variables in Render Dashboard as listed above.
+5 Deploy both services – Render will run the preDeployCommand (migrations) before starting.
+6 Set Clerk Proxy URL (in Clerk Dashboard → Sessions → Proxy settings) to https://basisguard-api.onrender.com/api/__clerk.
+7 Verify cron job (the keep‑alive workflow) is running in GitHub Actions.
+8 Test end‑to‑end (sign in, sync an exchange, run Tax Optimizer).
+
+---
+
+📝 Notes for Manual Workflow Copy
+
+· The Neon migration workflow uses the GitHub Secret DATABASE_URL. If you haven't set that secret yet, go to your repo → Settings → Secrets and variables → Actions → add DATABASE_URL with your Neon connection string.
+· The keep‑alive workflow doesn't need any secrets; it just pings the public URL. Adjust the URL if your service name differs.
+
+---
+
+You now have everything to deploy. Let me know when you're ready to start Phase 0 – I'll guide you through each step.

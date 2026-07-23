@@ -2,16 +2,19 @@
 # https://render.com/docs/blueprint-spec
 #
 # Two services:
-#   1. basisguard-api   — Express API server (Web Service)
-#   2. basisguard-web   — React/Vite frontend (Static Site)
+#   1. basisguard-api   — Express API server (Web Service, free tier)
+#   2. basisguard-web   — React/Vite frontend (Static Site, free tier)
+#
+# Database: Neon PostgreSQL (permanent free tier, no Render DB needed).
+#   Migrations run automatically via preDeployCommand before every deploy.
 #
 # One-time setup after first deploy:
-#   - Set VITE_CLERK_PROXY_URL on the static site to:
-#       https://basisguard-api.onrender.com/api/__clerk
-#     (replace with your actual API service URL)
 #   - Seed the database:
 #       psql $DATABASE_URL -f scripts/seed-citations.sql
 #       psql $DATABASE_URL -f scripts/seed-protocols.sql
+#   - Set VITE_CLERK_PROXY_URL on the static site to:
+#       https://basisguard-api.onrender.com/api/__clerk
+#     (replace with your actual API service URL if different)
 #
 # LinkedIn & Coinbase OAuth:
 #   Configure both as Social Connections in your Clerk dashboard at
@@ -25,34 +28,39 @@ services:
     name: basisguard-api
     runtime: node
     region: oregon
-    plan: starter
+    plan: free
     rootDir: .
     buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
     startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
     healthCheckPath: /api/healthz
+    # Runs Drizzle migrations against Neon before the new version goes live.
+    # Safe to re-run: drizzle-kit push is idempotent.
+    preDeployCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm db:push
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20.12.0
       - key: PORT
         value: 8080
+      - key: DATABASE_URL
+        sync: false   # set in Render dashboard → Environment (from Neon Console)
       - key: CLERK_SECRET_KEY
         sync: false   # set in Render dashboard → Environment
       - key: CLERK_PUBLISHABLE_KEY
         sync: false   # set in Render dashboard → Environment
       - key: SESSION_SECRET
         sync: false   # set in Render dashboard → Environment
-      - key: DATABASE_URL
-        sync: false   # set in Render dashboard → Environment (use Render PostgreSQL or external)
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   - type: web
     name: basisguard-web
     runtime: static
     region: oregon
-    plan: starter
+    plan: free
     rootDir: .
     buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter @workspace/basisguard run build
-    staticPublishPath: artifacts/basisguard/dist/public
+    staticPublishPath: artifacts/basisguard/dist/public   # matches vite.config.ts build.outDir
     headers:
       - path: /*
         name: Cache-Control
@@ -63,8 +71,8 @@ services:
         destination: /index.html
     envVars:
       - key: BASE_PATH
-        value: /    # frontend served at root; vite.config.ts uses this as `base`
+        value: /   # frontend served at root; vite.config.ts reads this as `base`
       - key: VITE_CLERK_PUBLISHABLE_KEY
-        sync: false   # set in Render dashboard → Environment (same value as CLERK_PUBLISHABLE_KEY)
+        sync: false   # same value as CLERK_PUBLISHABLE_KEY
       - key: VITE_CLERK_PROXY_URL
         sync: false   # set to: https://basisguard-api.onrender.com/api/__clerk
