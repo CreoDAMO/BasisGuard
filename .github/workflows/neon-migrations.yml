@@ -1,0 +1,98 @@
+name: Neon Database Migrations
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  # ── On push to main: migrate the production Neon branch ──────────────────────
+  migrate-main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run Drizzle migrations on main branch
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm db:push
+
+  # ── On PR open/update: create an isolated Neon branch and migrate it ─────────
+  migrate-pr-branch:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      db_url: ${{ steps.neon-branch.outputs.db_url }}
+      branch_id: ${{ steps.neon-branch.outputs.branch_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Neon branch for PR
+        id: neon-branch
+        uses: neondatabase/create-branch-action@v5
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          # Branch name is stable per PR number — reopening reuses it
+          branch_name: pr-${{ github.event.pull_request.number }}
+          # Fork from the main branch so the PR schema starts at production state
+          parent: main
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run Drizzle migrations on PR branch
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+        run: pnpm db:push
+
+      - name: Post branch URL to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: neon-branch
+          message: |
+            ### 🗄️ Neon DB branch ready
+            This PR has its own isolated database branch.
+
+            **Branch:** `pr-${{ github.event.pull_request.number }}`
+            **Connection string:** available in the `neon-branch` step outputs (masked for security).
+
+            Schema migrations have been applied automatically.
+
+  # ── On PR close/merge: delete the Neon branch ────────────────────────────────
+  delete-pr-branch:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Neon branch for PR
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: pr-${{ github.event.pull_request.number }}
