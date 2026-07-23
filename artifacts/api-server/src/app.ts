@@ -36,7 +36,27 @@ app.use(
 // Clerk proxy must be mounted before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+const corsAllowedOrigins = new Set(
+  (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+
+app.use(
+  cors({
+    credentials: true,
+    origin(origin, callback) {
+      // Allow same-origin/non-browser requests without an Origin header.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, corsAllowedOrigins.has(origin));
+    },
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
