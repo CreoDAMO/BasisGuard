@@ -35,7 +35,7 @@ services:
     # Migrations run at the end of the build step.
     # drizzle-kit push is idempotent — safe to run on every deploy.
     buildCommand: >-
-      npm install -g pnpm &&
+      npm install -g pnpm@10.26.1 &&
       pnpm install --no-frozen-lockfile &&
       pnpm --filter @workspace/api-server run build &&
       pnpm db:push

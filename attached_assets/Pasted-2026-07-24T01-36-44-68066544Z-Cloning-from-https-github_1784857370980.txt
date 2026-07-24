@@ -1,0 +1,42 @@
+2026-07-24T01:36:44.68066544Z ==> Cloning from https://github.com/CreoDAMO/BasisGuard
+2026-07-24T01:36:45.926695408Z ==> Checking out commit 6389382597d592a90f103dbecbff4b9bb27cbe53 in branch main
+2026-07-24T01:36:46.697235255Z ==> Requesting Node.js version 22
+2026-07-24T01:36:46.836535676Z ==> Using Node.js version 22.23.1 via environment variable NODE_VERSION
+2026-07-24T01:36:46.836549582Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-07-24T01:36:46.836656363Z ==> Installing Node.js version 22.23.1...
+2026-07-24T01:36:47.693507537Z ==> Running build command 'npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm --filter @workspace/api-server run build && pnpm db:push'...
+2026-07-24T01:36:48.927822617Z 
+2026-07-24T01:36:48.927838219Z added 1 package in 1s
+2026-07-24T01:36:48.92783997Z 
+2026-07-24T01:36:48.927842112Z 1 package is looking for funding
+2026-07-24T01:36:48.927844023Z   run `npm fund` for details
+2026-07-24T01:36:49.407883778Z Scope: all 9 workspace projects
+2026-07-24T01:36:49.48871436Z ? Verifying lockfile against supply-chain policies (566 entries)...
+2026-07-24T01:36:49.499764755Z Lockfile is up to date, resolution step is skipped
+2026-07-24T01:36:49.649399459Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2026-07-24T01:36:49.681765847Z Packages: +564
+2026-07-24T01:36:49.681783027Z ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2026-07-24T01:36:50.650506423Z Progress: resolved 564, reused 0, downloaded 0, added 0
+2026-07-24T01:36:51.673173772Z Progress: resolved 564, reused 0, downloaded 77, added 4
+2026-07-24T01:36:52.101542822Z ✓ Lockfile passes supply-chain policies (566 entries in 2.6s)
+2026-07-24T01:36:52.67451205Z Progress: resolved 564, reused 0, downloaded 194, added 12
+2026-07-24T01:36:53.674853669Z Progress: resolved 564, reused 0, downloaded 436, added 30
+2026-07-24T01:36:54.674815437Z Progress: resolved 564, reused 0, downloaded 526, added 36
+2026-07-24T01:36:55.675708854Z Progress: resolved 564, reused 0, downloaded 564, added 269
+2026-07-24T01:36:56.676702471Z Progress: resolved 564, reused 0, downloaded 564, added 457
+2026-07-24T01:36:57.13488531Z Progress: resolved 564, reused 0, downloaded 564, added 564, done
+2026-07-24T01:36:57.388138645Z 
+2026-07-24T01:36:57.388162007Z dependencies:
+2026-07-24T01:36:57.388163743Z + @replit/connectors-sdk 0.4.1
+2026-07-24T01:36:57.388164718Z 
+2026-07-24T01:36:57.388165557Z devDependencies:
+2026-07-24T01:36:57.388166339Z + prettier 3.9.5
+2026-07-24T01:36:57.388167572Z + typescript 5.9.3
+2026-07-24T01:36:57.388168687Z 
+2026-07-24T01:36:57.401270912Z . preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+2026-07-24T01:36:57.426639783Z . preinstall: Done
+2026-07-24T01:36:57.515360774Z [ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @clerk/shared@3.47.8, esbuild@0.27.3
+2026-07-24T01:36:57.515372809Z 
+2026-07-24T01:36:57.515374264Z Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+2026-07-24T01:36:57.621804074Z ==> Build failed 😞
+2026-07-24T01:36:57.621828591Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
