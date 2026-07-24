@@ -37,6 +37,7 @@ minimumReleaseAgeExclude:
   - stripe-replit-sync
 
 onlyBuiltDependencies:
+  - '@clerk/shared'    # needs postinstall on fresh (cache-less) installs e.g. Render CI
   - '@swc/core'
   - esbuild
   - msw
