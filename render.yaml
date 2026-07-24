@@ -45,7 +45,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: 20.12.0
+        value: 22   # pnpm v10 requires Node ≥ 22.13; v20 errors with ERR_UNKNOWN_BUILTIN_MODULE (node:sqlite)
       - key: PORT
         value: 8080
       - key: DATABASE_URL
@@ -56,17 +56,19 @@ services:
         sync: false   # set in Render dashboard → Environment
       - key: SESSION_SECRET
         sync: false   # set in Render dashboard → Environment
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false   # set to: https://basisguard-web.onrender.com (your frontend URL)
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   # Note: static sites do not support a region field.
+  # Render auto-runs `pnpm install` before the buildCommand on static sites,
+  # so DO NOT repeat `npm install -g pnpm` here — that fails with EROFS
+  # (read-only filesystem) on Render's static site build environment.
   - type: web
     name: basisguard-web
     runtime: static
     rootDir: .
-    buildCommand: >-
-      npm install -g pnpm &&
-      pnpm install --no-frozen-lockfile &&
-      pnpm --filter @workspace/basisguard run build
+    buildCommand: pnpm --filter @workspace/basisguard run build
     staticPublishPath: artifacts/basisguard/dist/public   # matches vite.config.ts build.outDir
     headers:
       - path: /*

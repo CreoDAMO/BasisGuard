@@ -453,6 +453,29 @@ psql $DATABASE_URL -f scripts/seed-protocols.sql
 
 ---
 
+## GitHub Actions — Keep Render Alive
+
+The `keep-alive.yml` workflow pings both Render services every 10 minutes. There is one known issue with the current implementation: `curl --max-time 30` exits with code 28 on timeout, and because the shell runs under `bash -e`, that non-zero exit code fails the step before the `if [ "$STATUS" != "200" ]` warning block can fire. This means a cold-start timeout (common on free tier) registers as a hard workflow failure rather than a warning.
+
+**The workflow file should not be edited directly in this repo.** The fix, when applied via the GitHub UI or a PR, is to absorb curl's non-zero exit and capture the status separately:
+
+```yaml
+- name: Ping API health endpoint
+  run: |
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+      https://basisguard-api.onrender.com/api/healthz || echo "000")
+    echo "HTTP status: $HTTP_CODE"
+    if [ "$HTTP_CODE" != "200" ]; then
+      echo "::warning::Health check returned $HTTP_CODE (expected 200)"
+    fi
+```
+
+The `|| echo "000"` absorbs curl exit code 28 (timeout) and sets `HTTP_CODE` to `000`, which then correctly triggers only a `::warning::` instead of failing the job.
+
+An alternative with no workflow changes: configure a free UptimeRobot or cron-job.org monitor against `https://basisguard-api.onrender.com/api/healthz` — no secrets needed since the endpoint is public.
+
+---
+
 ## LinkedIn & Coinbase OAuth (Clerk Dashboard)
 
 Both are configured entirely in the Clerk dashboard — no code changes required.

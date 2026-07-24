@@ -1,0 +1,108 @@
+# GitHub Workflows Error Report
+Keep Render Alive #7
+All jobs
+
+
+
+
+
+
+Run details
+Annotations
+1 error
+ping
+failed 1 hour ago in 34s
+0s
+31s
+Run STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+
+
+ STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+
+
+  --max-time 30 \
+
+
+  https://basisguard-api.onrender.com/api/healthz)
+
+
+ echo "HTTP status: $STATUS"
+
+
+ if [ "$STATUS" != "200" ]; then
+
+
+  echo "::warning::Health check returned $STATUS (expected 200)"
+
+
+ fi
+
+
+ shell: /usr/bin/bash -e {0}
+
+
+Error: Process completed with exit code 28.
+
+
+0s
+0s
+
+
+
+
+## Render Build logs
+2026-07-23T21:49:29.31738247Z ==> Cloning from https://github.com/CreoDAMO/BasisGuard
+2026-07-23T21:49:29.850317806Z ==> Checking out commit 01c614a603d9f21b820251e927ff07b54746d638 in branch main
+2026-07-23T21:49:31.485267549Z ==> Using Node.js version 20.12.0 via environment variable NODE_VERSION
+2026-07-23T21:49:31.48528305Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-07-23T21:49:31.485405177Z ==> Installing Node.js version 20.12.0...
+2026-07-23T21:49:32.381004187Z ==> Running build command 'npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm --filter @workspace/api-server run build && pnpm db:push'...
+2026-07-23T21:49:33.244238904Z 
+2026-07-23T21:49:33.244258431Z added 1 package in 758ms
+2026-07-23T21:49:33.244260672Z 
+2026-07-23T21:49:33.244262622Z 1 package is looking for funding
+2026-07-23T21:49:33.244263466Z   run `npm fund` for details
+2026-07-23T21:49:33.274620157Z warn: This version of pnpm requires at least Node.js v22.13
+2026-07-23T21:49:33.274641438Z warn: The current version of Node.js is v20.12.0
+2026-07-23T21:49:33.27464337Z warn: Visit https://r.pnpm.io/comp to see the list of past pnpm versions with respective Node.js version support.
+2026-07-23T21:49:33.523071824Z node:internal/modules/cjs/loader:977
+2026-07-23T21:49:33.523089823Z       throw new ERR_UNKNOWN_BUILTIN_MODULE(request);
+2026-07-23T21:49:33.52309081Z             ^
+2026-07-23T21:49:33.523091884Z 
+2026-07-23T21:49:33.523093442Z Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
+2026-07-23T21:49:33.523094228Z     at Module._load (node:internal/modules/cjs/loader:977:13)
+2026-07-23T21:49:33.523095338Z     at Module.require (node:internal/modules/cjs/loader:1231:19)
+2026-07-23T21:49:33.523096235Z     at require (node:internal/modules/helpers:179:18)
+2026-07-23T21:49:33.523097411Z     at ../store/index/lib/index.js (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:99736:25)
+2026-07-23T21:49:33.523098818Z     at __init (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:17:58)
+2026-07-23T21:49:33.523099912Z     at ../resolving/npm-resolver/lib/index.js (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:104887:5)
+2026-07-23T21:49:33.523100678Z     at __init (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:17:58)
+2026-07-23T21:49:33.523101613Z     at ../workspace/projects-graph/lib/index.js (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:105026:5)
+2026-07-23T21:49:33.523102713Z     at __init (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:17:58)
+2026-07-23T21:49:33.523103538Z     at ../workspace/projects-filter/lib/index.js (file:///opt/render/project/nodes/node-20.12.0/lib/node_modules/pnpm/dist/pnpm.mjs:106427:5) {
+2026-07-23T21:49:33.523105763Z   code: 'ERR_UNKNOWN_BUILTIN_MODULE'
+2026-07-23T21:49:33.523106695Z }
+2026-07-23T21:49:33.523108376Z 
+2026-07-23T21:49:33.523109195Z Node.js v20.12.0
+2026-07-23T21:49:33.555916924Z ==> Build failed 😞
+2026-07-23T21:49:33.55593961Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+
+—
+
+2026-07-23T21:42:14.550395686Z ==> Cloning from https://github.com/CreoDAMO/BasisGuard
+2026-07-23T21:42:15.56039448Z ==> Checking out commit 01c614a603d9f21b820251e927ff07b54746d638 in branch main
+2026-07-23T21:42:16.713958093Z ==> Installing dependencies with pnpm...
+2026-07-23T21:42:16.776785039Z ==> Using Node.js version 24.14.1 (default)
+2026-07-23T21:42:16.776798182Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-07-23T21:42:24.739899146Z ==> Running build command 'npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm --filter @workspace/basisguard run build'...
+2026-07-23T21:42:25.266503924Z npm error code EROFS
+2026-07-23T21:42:25.266523746Z npm error syscall rename
+2026-07-23T21:42:25.266525798Z npm error path /usr/lib/node_modules/pnpm
+2026-07-23T21:42:25.266527735Z npm error dest /usr/lib/node_modules/.pnpm-H0EZVZtB
+2026-07-23T21:42:25.266528827Z npm error errno -30
+2026-07-23T21:42:25.266530395Z npm error rofs EROFS: read-only file system, rename '/usr/lib/node_modules/pnpm' -> '/usr/lib/node_modules/.pnpm-H0EZVZtB'
+2026-07-23T21:42:25.266723243Z npm error rofs Often virtualized file systems, or other file systems
+2026-07-23T21:42:25.266732885Z npm error rofs that don't support symlinks, give this error.
+2026-07-23T21:42:25.267678601Z npm error A complete log of this run can be found in: /opt/render/.cache/_logs/2026-07-23T21_42_24_843Z-debug-0.log
+2026-07-23T21:42:25.313134848Z ==> Build failed 😞
+2026-07-23T21:42:25.313154038Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
