@@ -11,3 +11,5 @@ export * from "./lots";
 export * from "./coinbase_connections";
 export * from "./notifications";
 export * from "./exchange_connections";
+export * from "./subscriptions";
+export * from "./payments";

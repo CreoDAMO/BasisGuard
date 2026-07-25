@@ -1,8 +1,9 @@
 import { getAuth } from "@clerk/express";
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, subscriptionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { SUPER_ADMIN_EMAIL } from "../lib/planLimits.js";
 
 // Augment Express Request so downstream handlers can read req.user
 declare global {
