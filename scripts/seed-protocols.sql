@@ -172,5 +172,14 @@ INSERT INTO protocols (id, chain_id, name, slug, contract_addresses, adapter_ver
     }',
     '3.0',
     '{"docs": "https://docs.uniswap.org/contracts/v3/reference/overview", "audited": true}'
+  ),
+  (
+    'cc000001-0000-0000-0000-000000000011',
+    'bb000001-0000-0000-0000-000000000003',  -- base
+    'Base Standard Bridge',
+    'base_bridge',
+    '{"l2_standard_bridge": "0x4200000000000000000000000000000000000010"}',
+    '1.0',
+    '{"docs": "https://docs.base.org/base-chain/network-information/bridges-mainnet", "note": "OP Stack predeploy, fixed address — L2 side only (deposit finalization + withdrawal initiation)"}'
   )
 ON CONFLICT (id) DO NOTHING;

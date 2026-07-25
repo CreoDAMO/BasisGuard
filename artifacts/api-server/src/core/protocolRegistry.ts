@@ -2,6 +2,7 @@ import { db, chainsTable, protocolsTable, type RawTransaction, type Chain } from
 import { BaseProtocolAdapter, type ParsedEvent } from "./adapters/base.js";
 import { AaveAdapter } from "./adapters/aave.js";
 import { UniswapV3Adapter } from "./adapters/uniswap.js";
+import { BaseBridgeAdapter } from "./adapters/baseBridge.js";
 
 /**
  * Protocol slug → adapter class.
@@ -11,6 +12,7 @@ import { UniswapV3Adapter } from "./adapters/uniswap.js";
 const ADAPTER_CLASSES: Record<string, new (chain: Chain) => BaseProtocolAdapter> = {
   aave_v3: AaveAdapter,
   uniswap_v3: UniswapV3Adapter,
+  base_bridge: BaseBridgeAdapter,
 };
 
 export class ProtocolRegistry {
