@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/react";
+import { LegalFooter } from "@/components/legal/LegalFooter";
 
 const PLANS = [
   {
@@ -272,6 +273,7 @@ export default function PricingPage() {
           </p>
         </div>
       </div>
+      <LegalFooter />
     </div>
   );
 }

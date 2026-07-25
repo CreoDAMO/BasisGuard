@@ -31,8 +31,11 @@ import TaxOptimizerPage from "./pages/tax-optimizer";
 import TransactionsPage from "./pages/transactions";
 import PricingPage from "./pages/Pricing";
 import BillingSettingsPage from "./pages/BillingSettings";
+import PrivacyPolicyPage from "./pages/PrivacyPolicy";
+import TermsOfServicePage from "./pages/TermsOfService";
 import { BillingProvider } from "./context/BillingContext";
 import { UpgradeModal } from "./components/billing/UpgradeModal";
+import { LegalFooter } from "./components/legal/LegalFooter";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
@@ -51,10 +54,6 @@ function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
     ? path.slice(basePath.length) || "/"
     : path;
-}
-
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
 }
 
 // Match the app's deep-dark palette (forced dark mode in app-layout.tsx)
@@ -154,26 +153,29 @@ function SignUpPage() {
 // Public landing for unauthenticated users at the base path.
 function LandingPage() {
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-[#0a0a0a] text-[#e6e6e6] px-4 gap-10">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <ShieldCheck className="h-14 w-14 text-[#e6e6e6]" strokeWidth={1.5} />
-        <h1 className="font-serif text-5xl font-semibold tracking-widest uppercase">BasisGuard</h1>
-        <p className="text-[#999999] text-base max-w-sm leading-relaxed">
-          Crypto tax compliance evidence platform for licensed CPAs and authorized partners.
-        </p>
+    <div className="flex min-h-[100dvh] flex-col bg-[#0a0a0a] text-[#e6e6e6]">
+      <div className="flex flex-1 flex-col items-center justify-center gap-10 px-4">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <ShieldCheck className="h-14 w-14 text-[#e6e6e6]" strokeWidth={1.5} />
+          <h1 className="font-serif text-5xl font-semibold tracking-widest uppercase">BasisGuard</h1>
+          <p className="max-w-sm text-base leading-relaxed text-[#999999]">
+            Crypto tax compliance evidence platform for licensed CPAs and authorized partners.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Link href="/sign-in">
+            <button className="rounded-sm bg-[#fafafa] px-6 py-2.5 text-sm font-medium text-[#0a0a0a] transition-colors hover:bg-[#e6e6e6]">
+              Sign In
+            </button>
+          </Link>
+          <Link href="/sign-up">
+            <button className="rounded-sm border border-[#2a2a2a] px-6 py-2.5 text-sm font-medium text-[#e6e6e6] transition-colors hover:bg-[#1f1f1f]">
+              Request Access
+            </button>
+          </Link>
+        </div>
       </div>
-      <div className="flex gap-3">
-        <Link href="/sign-in">
-          <button className="px-6 py-2.5 bg-[#fafafa] text-[#0a0a0a] text-sm font-medium rounded-sm hover:bg-[#e6e6e6] transition-colors">
-            Sign In
-          </button>
-        </Link>
-        <Link href="/sign-up">
-          <button className="px-6 py-2.5 border border-[#2a2a2a] text-[#e6e6e6] text-sm font-medium rounded-sm hover:bg-[#1f1f1f] transition-colors">
-            Request Access
-          </button>
-        </Link>
-      </div>
+      <LegalFooter />
     </div>
   );
 }
@@ -258,6 +260,8 @@ function ClerkProviderWithRoutes() {
             <Switch>
               <Route path="/" component={HomeRoute} />
               <Route path="/pricing" component={PricingPage} />
+              <Route path="/privacy" component={PrivacyPolicyPage} />
+              <Route path="/terms" component={TermsOfServicePage} />
               {/* REQUIRED — copy "/sign-in/*?" and "/sign-up/*?" verbatim.
                   The /*? optional wildcard matches both the bare URL and Clerk's
                   OAuth sub-paths (/sign-in/sso-callback, etc). */}
@@ -274,7 +278,26 @@ function ClerkProviderWithRoutes() {
   );
 }
 
+function PublicFallback() {
+  return (
+    <WouterRouter base={basePath}>
+      <Switch>
+        <Route path="/privacy" component={PrivacyPolicyPage} />
+        <Route path="/terms" component={TermsOfServicePage} />
+        <Route path="/" component={LandingPage} />
+        <Route component={LandingPage} />
+      </Switch>
+    </WouterRouter>
+  );
+}
+
 function App() {
+  // Public legal pages must remain readable while a deployment is being
+  // configured. Authenticated screens still require the Clerk key below.
+  if (!clerkPubKey) {
+    return <PublicFallback />;
+  }
+
   return (
     <WouterRouter base={basePath}>
       <ClerkProviderWithRoutes />
