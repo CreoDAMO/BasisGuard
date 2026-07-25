@@ -1,0 +1,30 @@
+I want to add/ sell this as a software or service but instead of using Stripe I want to use Coinbase commerce or their USDC payments for subscriptions
+
+Now, the billing system — before I build this one, I actually need to know your pricing shape, since guessing wrong here means real rework, not just a naming fix:
+
+**Recommendation: Tiered pricing (not a single flat rate)**
+
+A single flat price is simpler but leaves money on the table and makes it harder to convert free users or serve both individual power users and CPA firms. Tiered is the industry standard for crypto tax tools and fits BasisGuard’s professional positioning much better.
+
+### Recommended Structure
+
+| Tier | Target | Monthly (or Annual) | Key Limits & Features | Why This Price |
+|------|--------|---------------------|-----------------------|---------------|
+| **Free** | Evaluation / light users | $0 | • Up to 100 transactions<br>• Basic Evidence Log preview<br>• 1 wallet / 1 tax year<br>• No exports, no Tax Optimizer, no multi-user | Lets people try the core value (citations + tiers) without friction. Converts to paid when they hit limits. |
+| **Pro** | Power users & solo CPAs | **$49 / month**<br>or **$399 / year** (save ~32%) | • Unlimited transactions<br>• Full Evidence Log + Review Queue<br>• Tax Optimizer (simulator, harvest, estate)<br>• Lot Inventory + FIFO<br>• Coinbase / Kraken / Gemini sync<br>• All exports (8949, audit packages)<br>• 1 user | Competitive with Koinly “Trader” ($179–$279/year) but higher-value (CPA workflow + immutability). Monthly option lowers barrier. |
+| **Firm** | Small CPA firms (2–10 users) | **$149 / month**<br>or **$1,299 / year** | Everything in Pro +<br>• Multi-client workspaces<br>• Team roles & sign-off credentials<br>• Shared review queue<br>• Priority support<br>• White-label exports option | Positions as professional tool. Most firms will pay this for multi-client workflow. |
+| **Enterprise** | Larger firms / treasury | Custom (starting ~$499–$999 / month) | Firm + SSO, dedicated instance, custom adapters, SOC 2, API access, SLA | High-touch sales; quote based on volume/users. |
+
+### Why This Mix Works
+- **Free → Pro conversion** is clean and matches competitor playbooks (Koinly, CoinLedger).
+- **Pro at $49/mo** is accessible for serious individuals while still premium relative to basic calculators.
+- **Firm at $149/mo** captures the real revenue opportunity (CPAs managing multiple clients).
+- Annual discounts improve cash flow and reduce churn.
+- Crypto-native payments (USDC via Coinbase Commerce) fit the product perfectly; keep a card option via Stripe for accessibility.
+
+### Implementation Notes
+- Soft limits first (show upgrade prompts when hitting transaction or client caps).
+- Grandfather early beta users at a lifetime discount.
+- Add a “per additional client” overage on Firm if needed later.
+
+These are suggestions but Tier is the best option
