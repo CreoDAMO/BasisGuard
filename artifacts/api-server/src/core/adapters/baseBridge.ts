@@ -46,7 +46,7 @@ export class BaseBridgeAdapter extends BaseProtocolAdapter {
 
     const rpcUrl = (this.chain.metadata as { rpc_url?: string } | null)?.rpc_url;
     const client = createPublicClient({ chain: base, transport: http(rpcUrl) });
-    const receipt = await client.getTransactionReceipt({ txHash: tx.txHash as `0x${string}` });
+    const receipt = await client.getTransactionReceipt({ hash: tx.txHash as `0x${string}` });
 
     const events: ParsedEvent[] = [];
     for (const log of receipt.logs) {

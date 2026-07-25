@@ -10,8 +10,14 @@ import {
 import { GetAuditPackageQueryParams } from "@workspace/api-zod";
 import { OPEN_GAP_EVENT_TYPES } from "./positions.js";
 import { isStale, STALE_THRESHOLD_DAYS } from "../core/reviewRules.js";
+import { requirePlan } from "../middlewares/planGate.js";
 
 const router: IRouter = Router();
+
+// Exports contain the audit-package and preparer handoff features reserved for
+// paid plans. Keep the gate at the router boundary so every export format has
+// the same billing behavior.
+router.use(requirePlan("pro", "exports"));
 
 // ── Open-gap comment-letter metadata ─────────────────────────────────────────
 // Must stay in sync with the six IRS-guidance-gap entries in OPEN_GAP_EVENT_TYPES

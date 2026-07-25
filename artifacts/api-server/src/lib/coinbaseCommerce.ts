@@ -93,5 +93,10 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
     throw new Error("COINBASE_COMMERCE_WEBHOOK_SECRET is not set");
   }
   const computed = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(computed, "hex"), Buffer.from(signature, "hex"));
+  const provided = signature.trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(provided)) return false;
+  return crypto.timingSafeEqual(
+    Buffer.from(computed, "hex"),
+    Buffer.from(provided, "hex"),
+  );
 }

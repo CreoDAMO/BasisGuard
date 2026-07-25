@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { requireAuth } from "../middlewares/auth.js";
+import { attachSubscription } from "../middlewares/planGate.js";
 import healthRouter from "./health";
 import meRouter from "./me";
 import dashboardRouter from "./dashboard";
@@ -17,15 +18,21 @@ import notificationsRouter from "./notifications";
 import exchangesRouter from "./exchanges";
 import metricsRouter from "./metrics";
 import taxOptimizerRouter from "./tax-optimizer";
+import billingRouter, { webhookHandler } from "./billing.js";
 
 const router: IRouter = Router();
 
 // Health check is public — monitoring tools must not need auth
 router.use(healthRouter);
 
+// Coinbase Commerce must be reachable without a Clerk session. The handler
+// authenticates the request with the Commerce webhook signature instead.
+router.post("/billing/webhook", webhookHandler);
+
 // All subsequent routes require a valid Clerk session.
 // requireAuth also JIT-provisions a local user row on first visit.
 router.use(requireAuth);
+router.use(attachSubscription);
 
 router.use(meRouter);
 router.use(dashboardRouter);
@@ -43,5 +50,6 @@ router.use(notificationsRouter);
 router.use(exchangesRouter);
 router.use(metricsRouter);
 router.use(taxOptimizerRouter);
+router.use(billingRouter);
 
 export default router;

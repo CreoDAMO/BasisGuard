@@ -372,6 +372,18 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
+    if (
+      response.status === 402 &&
+      typeof window !== "undefined" &&
+      errorData &&
+      typeof errorData === "object" &&
+      "required_plan" in errorData &&
+      ("soft" in errorData || "error" in errorData)
+    ) {
+      window.dispatchEvent(
+        new CustomEvent("billing:limit_hit", { detail: errorData }),
+      );
+    }
     throw new ApiError(response, errorData, requestInfo);
   }
 

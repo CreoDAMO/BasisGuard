@@ -30,8 +30,10 @@ import {
   type StepUpLot,
   type EstateStepUpResult,
 } from "../core/taxOptimizer.js";
+import { requirePlan } from "../middlewares/planGate.js";
 
 const router: IRouter = Router();
+router.use(requirePlan("pro", "tax optimizer"));
 
 // ── DB → core mapper ──────────────────────────────────────────────────────────
 

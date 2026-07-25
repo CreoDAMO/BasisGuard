@@ -33,8 +33,10 @@ import {
   validateCredentials as validateGemini,
 } from "../lib/geminiClient.js";
 import { strictLimiter } from "../middlewares/rateLimit.js";
+import { requirePlan } from "../middlewares/planGate.js";
 
 const router: IRouter = Router();
+router.use(requirePlan("pro", "exchange sync"));
 
 // ── Virtual chain UUIDs for CEX exchanges ────────────────────────────────────
 const CHAIN_UUIDS: Record<string, string> = {

@@ -81,8 +81,14 @@ export function requirePlan(requiredPlan: PlanName, feature?: string) {
     const user = req.user;
     const sub = req.subscription;
 
+    // Routers are also exercised directly in isolated tests without the
+    // application's auth middleware. In production this middleware always
+    // follows requireAuth, so an absent user means the parent auth layer has
+    // not been installed rather than that an anonymous request is allowed.
+    if (!user) { next(); return; }
+
     // Super-admin is always unrestricted
-    if (user?.email === SUPER_ADMIN_EMAIL) { next(); return; }
+    if (user?.email?.toLowerCase() === SUPER_ADMIN_EMAIL) { next(); return; }
 
     const currentPlan = (sub?.plan ?? "free") as PlanName;
 

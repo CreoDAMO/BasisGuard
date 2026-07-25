@@ -179,7 +179,7 @@ export default function PricingPage() {
                   : "border-zinc-800 bg-zinc-900/50",
               )}
             >
-              {plan.badge && (
+              {"badge" in plan && plan.badge && (
                 <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-black text-xs">
                   {plan.badge}
                 </Badge>

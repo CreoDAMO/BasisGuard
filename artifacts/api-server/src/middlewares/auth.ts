@@ -37,6 +37,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   if (existing.length > 0) {
     req.user = existing[0];
+    await ensureSubscription(req.user);
     next();
     return;
   }
@@ -50,7 +51,36 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     .returning();
 
   req.user = created;
+  await ensureSubscription(created);
   next();
+}
+
+/**
+ * Billing is provisioned lazily alongside the local user record. Existing
+ * users therefore receive the same onboarding trial the first time they
+ * return after billing is enabled, while the super-admin remains unrestricted.
+ */
+async function ensureSubscription(user: typeof usersTable.$inferSelect): Promise<void> {
+  const [subscription] = await db
+    .select({ id: subscriptionsTable.id })
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, user.id))
+    .limit(1);
+
+  if (subscription) return;
+
+  const isSuperAdmin = user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+  const now = new Date();
+  const trialEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  await db.insert(subscriptionsTable).values({
+    userId: user.id,
+    plan: isSuperAdmin ? "enterprise" : "pro",
+    billingPeriod: isSuperAdmin ? "lifetime" : "monthly",
+    status: isSuperAdmin ? "grandfathered" : "beta_trial",
+    currentPeriodStart: now,
+    currentPeriodEnd: isSuperAdmin ? null : trialEnd,
+  }).onConflictDoNothing({ target: subscriptionsTable.userId });
 }
 
 /**

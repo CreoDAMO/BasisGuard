@@ -10,9 +10,9 @@
  *   POST /billing/cancel    — cancel active subscription.
  *   POST /billing/contact   — Enterprise contact form.
  */
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
-import { db, subscriptionsTable, paymentsTable, usersTable } from "@workspace/db";
+import { db, subscriptionsTable, paymentsTable } from "@workspace/db";
 import { createCharge, verifyWebhookSignature, type CommerceWebhookEvent } from "../lib/coinbaseCommerce.js";
 import { PLAN_PRICES, PERIOD_DAYS, SUPER_ADMIN_EMAIL } from "../lib/planLimits.js";
 import { logger } from "../lib/logger.js";
@@ -26,11 +26,11 @@ const router = Router();
  * Requires raw body — app.ts must enable the rawBody capture on express.json().
  */
 export async function webhookHandler(req: Request, res: Response): Promise<void> {
-  const signature = (req as unknown as import("express").Request).headers["x-cc-webhook-signature"] as string | undefined;
-  const rawBody = (req as unknown as { rawBody?: string }).rawBody ?? "";
+  const signature = req.headers["x-cc-webhook-signature"] as string | undefined;
+  const rawBody = (req as Request & { rawBody?: string }).rawBody ?? "";
 
   if (!signature) {
-    (res as unknown as import("express").Response).status(400).json({ error: "Missing signature" });
+    res.status(400).json({ error: "Missing signature" });
     return;
   }
 
@@ -39,16 +39,22 @@ export async function webhookHandler(req: Request, res: Response): Promise<void>
     verified = verifyWebhookSignature(rawBody, signature);
   } catch (err) {
     logger.warn({ err }, "Webhook secret not configured");
-    (res as unknown as import("express").Response).status(500).json({ error: "Webhook secret not configured" });
+    res.status(500).json({ error: "Webhook secret not configured" });
     return;
   }
 
   if (!verified) {
-    (res as unknown as import("express").Response).status(401).json({ error: "Invalid signature" });
+    res.status(401).json({ error: "Invalid signature" });
     return;
   }
 
-  const event = JSON.parse(rawBody) as CommerceWebhookEvent;
+  let event: CommerceWebhookEvent;
+  try {
+    event = JSON.parse(rawBody) as CommerceWebhookEvent;
+  } catch {
+    res.status(400).json({ error: "Invalid JSON payload" });
+    return;
+  }
   logger.info({ type: event.type, chargeId: event.data?.id }, "Commerce webhook received");
 
   if (event.type === "charge:confirmed") {
@@ -56,7 +62,7 @@ export async function webhookHandler(req: Request, res: Response): Promise<void>
   }
 
   // Always 200 — Commerce retries on non-2xx
-  (res as unknown as import("express").Response).status(200).json({ received: true });
+  res.status(200).json({ received: true });
 }
 
 async function handleChargeConfirmed(

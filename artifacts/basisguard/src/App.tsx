@@ -29,6 +29,10 @@ import ConnectionsPage from "./pages/connections";
 import NotificationPreferencesPage from "./pages/notification-preferences";
 import TaxOptimizerPage from "./pages/tax-optimizer";
 import TransactionsPage from "./pages/transactions";
+import PricingPage from "./pages/Pricing";
+import BillingSettingsPage from "./pages/BillingSettings";
+import { BillingProvider } from "./context/BillingContext";
+import { UpgradeModal } from "./components/billing/UpgradeModal";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
@@ -221,6 +225,7 @@ function AppRoutes() {
         <Route path="/notifications/preferences" component={NotificationPreferencesPage} />
         <Route path="/tax-optimizer" component={TaxOptimizerPage} />
         <Route path="/transactions" component={TransactionsPage} />
+        <Route path="/billing" component={BillingSettingsPage} />
         <Route component={NotFound} />
       </Switch>
     </ProtectedPage>
@@ -234,7 +239,7 @@ function ClerkProviderWithRoutes() {
 
   return (
     <ClerkProvider
-      publishableKey={clerkPubKey}
+      publishableKey={clerkPubKey!}
       proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
@@ -249,15 +254,19 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
-          <Switch>
-            <Route path="/" component={HomeRoute} />
-            {/* REQUIRED — copy "/sign-in/*?" and "/sign-up/*?" verbatim.
-                The /*? optional wildcard matches both the bare URL and Clerk's
-                OAuth sub-paths (/sign-in/sso-callback, etc). */}
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
-            <Route component={AppRoutes} />
-          </Switch>
+          <BillingProvider>
+            <Switch>
+              <Route path="/" component={HomeRoute} />
+              <Route path="/pricing" component={PricingPage} />
+              {/* REQUIRED — copy "/sign-in/*?" and "/sign-up/*?" verbatim.
+                  The /*? optional wildcard matches both the bare URL and Clerk's
+                  OAuth sub-paths (/sign-in/sso-callback, etc). */}
+              <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/sign-up/*?" component={SignUpPage} />
+              <Route component={AppRoutes} />
+            </Switch>
+            <UpgradeModal />
+          </BillingProvider>
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

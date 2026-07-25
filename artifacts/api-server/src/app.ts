@@ -57,7 +57,15 @@ app.use(
     },
   }),
 );
-app.use(express.json());
+// Keep a copy of the raw payload for Coinbase Commerce webhook HMAC checks.
+// The parsed body remains available to all normal JSON routes.
+app.use(
+  express.json({
+    verify(req, _res, buf) {
+      (req as RequestWithRawBody).rawBody = buf.toString("utf8");
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting (global) + request metrics
@@ -74,3 +82,5 @@ app.use(
 app.use("/api", router);
 
 export default app;
+
+type RequestWithRawBody = express.Request & { rawBody?: string };
