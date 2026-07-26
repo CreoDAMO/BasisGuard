@@ -1,0 +1,33 @@
+2026-07-26T01:23:43.816908389Z ==> Downloading cache...
+2026-07-26T01:23:43.84237918Z ==> Cloning from https://github.com/CreoDAMO/BasisGuard
+2026-07-26T01:23:44.741162667Z ==> Checking out commit 14d3034a40f171c6819d3cad2f11e46d6e70dcec in branch main
+2026-07-26T01:23:51.975117368Z ==> Downloaded 194MB in 4s. Extraction took 4s.
+2026-07-26T01:23:53.092598969Z ==> Installing dependencies with pnpm...
+2026-07-26T01:23:53.150091428Z ==> Using Node.js version 24.14.1 (default)
+2026-07-26T01:23:53.150106038Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-07-26T01:23:54.428180421Z ==> Running build command 'pnpm --filter @workspace/basisguard run build'...
+2026-07-26T01:23:54.690131574Z 
+2026-07-26T01:23:54.690148531Z > @workspace/basisguard@0.0.0 build /opt/render/project/src/artifacts/basisguard
+2026-07-26T01:23:54.690151309Z > vite build --config vite.config.ts
+2026-07-26T01:23:54.690152138Z 
+2026-07-26T01:23:54.882628571Z vite v7.3.6 building client environment for production...
+2026-07-26T01:23:54.933987223Z transforming...
+2026-07-26T01:23:55.424219716Z src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-26T01:23:56.08514295Z src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-26T01:23:56.08589477Z src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-26T01:23:56.097297415Z src/components/ui/sidebar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-26T01:23:56.325981648Z src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-26T01:23:58.135259748Z ✓ 2841 modules transformed.
+2026-07-26T01:23:58.555126201Z rendering chunks...
+2026-07-26T01:23:58.568250955Z computing gzip size...
+2026-07-26T01:23:58.604797185Z dist/public/index.html                     1.37 kB │ gzip:   0.54 kB
+2026-07-26T01:23:58.604807002Z dist/public/assets/index-BnXSMTkU.css    157.87 kB │ gzip:  23.63 kB
+2026-07-26T01:23:58.604814597Z dist/public/assets/index-CJSPaOxP.js   1,169.64 kB │ gzip: 325.57 kB
+2026-07-26T01:23:58.604830118Z 
+2026-07-26T01:23:58.604839295Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-07-26T01:23:58.604842986Z - Using dynamic import() to code-split the application
+2026-07-26T01:23:58.604844199Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-07-26T01:23:58.604845156Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-07-26T01:23:58.604992148Z ✓ built in 3.70s
+2026-07-26T01:23:59.129773614Z ==> Uploading build...
+2026-07-26T01:23:59.300005899Z ==> Your site is live 🎉
