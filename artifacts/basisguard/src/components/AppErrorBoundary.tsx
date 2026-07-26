@@ -1,0 +1,71 @@
+import { Component, type ReactNode } from "react";
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  error: Error | null;
+}
+
+/**
+ * Catches any render-time throw (Clerk domain/proxy misconfiguration being
+ * the most likely cause in production) and shows the actual error instead of
+ * leaving the page blank. A blank white screen gives no signal to diagnose;
+ * this at least surfaces what broke.
+ */
+export class AppErrorBoundary extends Component<Props, State> {
+  state: State = { error: null };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    // eslint-disable-next-line no-console
+    console.error("BasisGuard crashed during render:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "2rem",
+            background: "#09090b",
+            color: "#e4e4e7",
+            fontFamily: "system-ui, sans-serif",
+          }}
+        >
+          <div style={{ maxWidth: 640 }}>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+              BasisGuard failed to load
+            </h1>
+            <p style={{ color: "#a1a1aa", marginBottom: "1rem" }}>
+              This is almost always a Clerk domain or proxy URL misconfiguration in production —
+              check that this domain is listed in the Clerk Dashboard's allowed domains, and that
+              VITE_CLERK_PROXY_URL matches the current API host.
+            </p>
+            <pre
+              style={{
+                background: "#18181b",
+                padding: "1rem",
+                borderRadius: "0.5rem",
+                fontSize: "0.8rem",
+                overflowX: "auto",
+                color: "#f87171",
+              }}
+            >
+              {this.state.error.message}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
