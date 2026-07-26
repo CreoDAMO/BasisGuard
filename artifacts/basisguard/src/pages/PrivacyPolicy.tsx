@@ -201,7 +201,88 @@ const sections = [
   },
   {
     title: "9. International Users",
-    body: <p><strong>[Confirm with counsel: if you have or expect users outside the US, this section needs to address the applicable transfer mechanism — e.g., GDPR adequacy, standard contractual clauses, etc.]</strong></p>,
+    body: (
+      <>
+        <p>
+          BasisGuard is designed for U.S. cryptocurrency tax compliance under IRS rules and is
+          primarily used by U.S.-based tax professionals. If you access the Service from outside
+          the United States, the following applies.
+        </p>
+
+        <h3 className="mb-2 mt-5 font-medium text-zinc-200">EU / EEA and UK Users — Legal Basis</h3>
+        <p>
+          Where the GDPR (EU 2016/679) or UK GDPR applies to our processing of your data, we rely
+          on the following legal bases:
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li>
+            <strong>Contract performance (Art. 6(1)(b))</strong> — processing your account
+            information, transaction data, and API credentials to provide the Service you signed
+            up for.
+          </li>
+          <li>
+            <strong>Legitimate interests (Art. 6(1)(f))</strong> — maintaining security, preventing
+            fraud, and improving the Service, where those interests are not overridden by your
+            rights. We do not rely on legitimate interests to market to you or share your data with
+            third parties for their own purposes.
+          </li>
+          <li>
+            <strong>Legal obligation (Art. 6(1)(c))</strong> — retaining certain records to comply
+            with applicable law, as described in Section 6.
+          </li>
+        </ul>
+
+        <h3 className="mb-2 mt-5 font-medium text-zinc-200">International Data Transfers</h3>
+        <p>
+          Your data is processed on infrastructure hosted in the United States (Neon PostgreSQL,
+          Render). For transfers of personal data from the EU/EEA or UK to the U.S., we rely on{" "}
+          <strong>Standard Contractual Clauses (SCCs)</strong> approved by the European Commission
+          (June 2021 decision, Module 2: Controller-to-Processor), incorporated by reference into
+          our agreements with sub-processors. A copy of the applicable SCCs is available on request
+          at <strong>basisguard@ssdfinc.xyz</strong>.
+        </p>
+        <p className="mt-3">
+          We conduct transfer impact assessments for our key sub-processors (Clerk, Neon, Render)
+          and apply supplementary technical measures — including encryption at rest and in transit
+          — to protect data transferred outside the EEA.
+        </p>
+
+        <h3 className="mb-2 mt-5 font-medium text-zinc-200">GDPR Data Subject Rights (Arts. 15–22)</h3>
+        <p>If the GDPR applies to you, you have the right to:</p>
+        <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li><strong>Access</strong> a copy of the personal data we hold about you (Art. 15)</li>
+          <li><strong>Rectify</strong> inaccurate data (Art. 16)</li>
+          <li><strong>Erase</strong> your data (&quot;right to be forgotten&quot;) subject to legal retention requirements (Art. 17)</li>
+          <li><strong>Restrict</strong> processing while a dispute about accuracy or lawfulness is pending (Art. 18)</li>
+          <li><strong>Portability</strong> — receive your data in a machine-readable format (Art. 20)</li>
+          <li><strong>Object</strong> to processing based on legitimate interests (Art. 21)</li>
+          <li><strong>Withdraw consent</strong> at any time where processing is based on consent</li>
+        </ul>
+        <p className="mt-3">
+          To exercise any of these rights, contact <strong>basisguard@ssdfinc.xyz</strong>. We
+          will respond within 30 days. If you believe we have not addressed your concern, you have
+          the right to lodge a complaint with your local supervisory authority (e.g., your EU
+          member state&apos;s data protection authority, or the ICO in the UK).
+        </p>
+
+        <h3 className="mb-2 mt-5 font-medium text-zinc-200">California Residents — CCPA / CPRA</h3>
+        <p>
+          California residents have the right to know what personal information we collect and
+          how it is used, to request deletion, to correct inaccurate information, and to opt out
+          of any sale of personal information. <strong>We do not sell personal information.</strong>{" "}
+          To exercise your California rights, contact <strong>basisguard@ssdfinc.xyz</strong>.
+          We will not discriminate against you for exercising these rights.
+        </p>
+
+        <h3 className="mb-2 mt-5 font-medium text-zinc-200">Service Scope Note</h3>
+        <p>
+          Because BasisGuard is built around U.S. federal tax law (IRC, IRS guidance, Circular 230),
+          its classifications and outputs are not designed for non-U.S. tax regimes. International
+          users accept that the Service&apos;s tax analysis is U.S.-specific and should not be relied
+          upon for compliance in other jurisdictions without independent professional review.
+        </p>
+      </>
+    ),
   },
   {
     title: "10. Changes to This Policy",
