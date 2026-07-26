@@ -182,6 +182,10 @@ function LandingPage() {
 
 // Base path: redirect to dashboard if signed in, show landing if not.
 function HomeRoute() {
+  const { isLoaded } = useAuth();
+  // While Clerk is initialising (or if the proxy is unreachable), render the
+  // landing page instead of a blank white screen.
+  if (!isLoaded) return <LandingPage />;
   return (
     <>
       <Show when="signed-in">
@@ -196,6 +200,10 @@ function HomeRoute() {
 
 // Wraps authenticated app pages — redirects to landing if session expires.
 function ProtectedPage({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useAuth();
+  // Show nothing (not a redirect) while Clerk loads — the router will settle
+  // to HomeRoute first anyway, so this state is transient.
+  if (!isLoaded) return null;
   return (
     <>
       <Show when="signed-in">
