@@ -7,9 +7,9 @@ const sections = [
     title: "1. Who We Are",
     body: (
       <p>
-        BasisGuard is operated by <strong>[ENTITY NAME — e.g., SSDF Inc.]</strong>, a [STATE]
+        BasisGuard is operated by <strong>SSDF Inc.</strong>, a Florida
         corporation ("Company," "we," "us"). Contact:{" "}
-        <strong>[PRIVACY CONTACT EMAIL]</strong>.
+        <strong>basisguard@ssdfinc.xyz</strong>.
       </p>
     ),
   },
@@ -149,13 +149,38 @@ const sections = [
   {
     title: "6. Data Retention",
     body: (
-      <p>
-        <strong>[This section requires a business decision before publication.]</strong> We
-        currently retain account and transaction data for as long as your account is active, plus
-        <strong> [X years]</strong> afterward, consistent with common tax record-retention
-        practice. You may request deletion of your account and associated data, subject to any
-        records we are required to retain for legal or regulatory compliance.
-      </p>
+      <>
+        <p>
+          We retain your data using a tiered strategy designed to align with IRS and Florida
+          record-keeping requirements:
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li>
+            <strong>While your account is active</strong> — all account, transaction, and position
+            data is retained in full.
+          </li>
+          <li>
+            <strong>After account closure — 7 years</strong> from the date of closure. This covers
+            the IRS's standard three-year assessment window, the six-year window for substantial
+            understatements of income (IRC § 6501(e)), and the Florida Department of Revenue's
+            parallel audit window, with a one-year buffer.
+          </li>
+          <li>
+            <strong>Exchange API credentials</strong> — deleted within 30 days of disconnection or
+            account closure, whichever comes first.
+          </li>
+          <li>
+            <strong>Audit trail records</strong> (signed position records, supersession chains, and
+            reviewer attestations) — retained for 7 years post-closure regardless of deletion
+            requests, to the extent required by applicable law.
+          </li>
+        </ul>
+        <p className="mt-4">
+          You may request deletion of your account and non-required data at any time by contacting{" "}
+          <strong>basisguard@ssdfinc.xyz</strong>. We will confirm what we are and are not able to
+          delete given any applicable legal holds.
+        </p>
+      </>
     ),
   },
   {
@@ -164,7 +189,7 @@ const sections = [
       <p>
         Depending on your jurisdiction, you may have the right to access, correct, export, or
         delete your personal information, and to withdraw consent for optional processing. To
-        exercise these rights, contact <strong>[PRIVACY CONTACT EMAIL]</strong>. You may
+        exercise these rights, contact <strong>basisguard@ssdfinc.xyz</strong>. You may
         disconnect an exchange connection and delete its stored credentials at any time from the
         Connections page.
       </p>
@@ -184,7 +209,7 @@ const sections = [
   },
   {
     title: "11. Contact",
-    body: <p>Questions about this policy: <strong>[PRIVACY CONTACT EMAIL]</strong><br /><strong>[ENTITY NAME AND MAILING ADDRESS]</strong></p>,
+    body: <p>Questions about this policy: <strong>basisguard@ssdfinc.xyz</strong><br /><strong>SSDF Inc., 1945 NW 86th St, Miami, FL 33147</strong></p>,
   },
 ];
 
@@ -205,7 +230,7 @@ export default function PrivacyPolicyPage() {
             <span className="font-mono text-xs uppercase tracking-[0.25em] text-zinc-500">BasisGuard</span>
           </div>
           <h1 className="mt-6 font-serif text-4xl text-white sm:text-5xl">Privacy Policy</h1>
-          <p className="mt-4 text-sm text-zinc-500">Last updated: [DATE]</p>
+          <p className="mt-4 text-sm text-zinc-500">Last updated: July 25, 2026</p>
           <div className="mt-6 rounded border border-amber-900/60 bg-amber-950/20 px-4 py-3 text-sm leading-6 text-amber-200/80">
             Draft prepared for legal review. This document is not a substitute for review by a
             licensed attorney familiar with your jurisdiction and business structure.
