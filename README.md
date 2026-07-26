@@ -2,7 +2,9 @@
 
 **Evidence Log & Tax Optimization Engine for Crypto Tax Compliance**
 
-BasisGuard is a professional tax compliance platform that brings Circular 230 / IRC §6694 standards to every cryptocurrency transaction. Every position is classified with a cited IRS authority, a confidence tier, and a plain-language rationale — and nothing is ever classified without a real citation.
+BasisGuard is a professional tax compliance platform built by **SSDF Inc.** It brings Circular 230 / IRC §6694 standards to every cryptocurrency transaction — every position is classified with a cited IRS authority, a confidence tier, and a plain-language rationale. Nothing is ever classified without a real citation.
+
+🌐 **Live at [basisguard.site](https://basisguard.site)**
 
 ---
 
@@ -13,6 +15,19 @@ Crypto tax preparers face two problems that generic tools ignore:
 1. **Defensibility** — When an IRS examiner asks "why did you classify this LP withdrawal as non-taxable?", the answer must cite a specific authority, not a software vendor's assumption. BasisGuard requires a citation for every position.
 
 2. **Guidance gaps** — The IRS has not addressed dozens of common DeFi event types. BasisGuard makes the gap explicit: open-gap events are flagged, held for preparer review, and documented with the best available analogical authority — never silently classified as if guidance existed.
+
+---
+
+## Pricing
+
+| Plan | Price | For |
+|------|-------|-----|
+| **Free** | $0 | Getting started — subject to usage limits |
+| **Pro** | $49 / mo · $399 / yr | Individual preparers |
+| **Firm** | $149 / mo · $1,299 / yr | Multi-client practices |
+| **Enterprise** | Custom | Large firms — [contact us](mailto:basisguard@ssdfinc.xyz) |
+
+Payments accepted in **USDC via Coinbase Commerce**. Annual plans billed upfront.
 
 ---
 
@@ -112,7 +127,7 @@ When new IRS guidance modifies the correct treatment of a past event:
 
 ---
 
-## Tax Optimizer (Tier 3)
+## Tax Optimizer
 
 `/tax-optimizer` — three tools in one page, all backed by the live lot inventory.
 
@@ -156,6 +171,7 @@ The following event types have no direct IRS guidance and always require prepare
 | DeFi yield | Notice 2024-57 | Income on receipt or deferred? |
 | Staking rewards (accrual) | Rev. Rul. 2023-14 (partial) | Cash-basis covered; accrual-basis open |
 | NFT sales (collectibles question) | Notice 2023-27 | §408(m) look-through incomplete |
+| Bridge transfers | Notice 2024-57 (analogical) | Cross-chain bridge events (Base Standard Bridge and others) — no direct authority |
 
 ---
 
@@ -173,7 +189,7 @@ The following event types have no direct IRS guidance and always require prepare
 
 ## Connections & Data Import
 
-BasisGuard pulls transaction history directly from exchanges, eliminating manual CSV uploads and reducing transcription risk. All credentials are encrypted at rest with AES-256-GCM. The **Connections** page (sidebar → Operations → Connections) provides a UI for all three supported exchanges.
+BasisGuard pulls transaction history directly from exchanges and on-chain protocol adapters, eliminating manual CSV uploads and reducing transcription risk. All credentials are encrypted at rest with AES-256-GCM. The **Connections** page (sidebar → Operations → Connections) provides a UI for exchange connections.
 
 ### Coinbase
 
@@ -220,12 +236,25 @@ Uses the Gemini REST API to pull trade history and transfer history. Requires a 
 
 Key link: [Manage API keys](https://exchange.gemini.com/settings/api)
 
-### Common behavior across all exchanges
+### Base Standard Bridge (on-chain adapter)
+
+Decodes bridge events directly from on-chain transaction logs via viem. No API key required — the adapter reads from public Base and Ethereum RPC endpoints.
+
+| Bridge event | BasisGuard event type | Notes |
+|---|---|---|
+| `ETHDepositInitiated` | `bridge_transfer` | ETH from Ethereum → Base (initiated) |
+| `ETHWithdrawalFinalized` | `bridge_transfer` | ETH from Base → Ethereum (finalized) |
+| `ERC20DepositInitiated` | `bridge_transfer` | ERC-20 from Ethereum → Base (initiated) |
+| `ERC20WithdrawalFinalized` | `bridge_transfer` | ERC-20 from Base → Ethereum (finalized) |
+
+All four event types land in the review queue automatically (`bridge_transfer` is an open-gap category).
+
+### Common behavior across all sources
 
 - Transactions are deduplicated by `tx_hash` — syncing twice never creates duplicates
 - Staking rewards and open-gap events are automatically flagged `requires_review = true`
 - CEX transactions are stored under a virtual chain row (no on-chain address required)
-- Server-level credentials can be set as Replit Secrets (`COINBASE_API_KEY` / `COINBASE_API_SECRET`); per-user credentials entered via the Connections UI are stored encrypted in the `exchange_connections` table
+- Server-level credentials can be set as environment variables (`COINBASE_API_KEY` / `COINBASE_API_SECRET`); per-user credentials entered via the Connections UI are stored encrypted in the `exchange_connections` table
 
 ---
 
@@ -250,18 +279,28 @@ Key link: [Manage API keys](https://exchange.gemini.com/settings/api)
 
 ## Technical Stack
 
-- **Frontend**: React + Vite, Tailwind CSS v4, TanStack Query, wouter, Recharts
-- **API**: Express 5, OpenAPI-first (Orval codegen), Zod validation
-- **Auth**: Clerk (Replit-managed tenant) — cookie-based sessions, JIT user provisioning
-- **Database**: PostgreSQL 16 + Drizzle ORM
+- **Frontend**: React 19 + Vite 7, Tailwind CSS v4, TanStack Query, wouter, Recharts
+- **API**: Express 5, OpenAPI-first (Orval codegen), Zod v4 validation
+- **Auth**: Clerk (external tenant) — cookie-based sessions, JIT user provisioning
+- **Database**: PostgreSQL 16 + Drizzle ORM (hosted on Neon)
 - **EVM decoding**: viem 2 (`decodeEventLog`, public client for receipt fetching)
 - **Price oracle**: CoinGecko (current prices via `/simple/price`; historical via `/coins/{id}/history`)
+- **Payments**: Coinbase Commerce (USDC)
+- **Hosting**: Render (API as Web Service, frontend as Static Site)
 - **Monorepo**: pnpm workspaces
 
 For developer setup, architecture details, and all API routes, see [`replit.md`](./replit.md).
 
 ---
 
+## Legal
+
+- [Privacy Policy](https://basisguard.site/privacy) — SSDF Inc., effective July 25, 2026
+- [Terms of Service](https://basisguard.site/terms) — SSDF Inc., effective July 25, 2026
+- Questions: [basisguard@ssdfinc.xyz](mailto:basisguard@ssdfinc.xyz)
+
+---
+
 ## Disclaimer
 
-BasisGuard is a workflow and evidence management tool. It does not constitute legal or tax advice. All positions should be reviewed by a qualified tax professional. Classification of cryptocurrency transactions involves unsettled legal questions; users are solely responsible for the accuracy and completeness of their tax filings.
+BasisGuard is a workflow and evidence management tool operated by SSDF Inc. It does not constitute legal or tax advice, and using it does not create an attorney-client, CPA-client, or tax-preparer relationship. All positions should be reviewed by a qualified, licensed tax professional. Classification of cryptocurrency transactions involves unsettled legal questions; users are solely responsible for the accuracy and completeness of their tax filings.
