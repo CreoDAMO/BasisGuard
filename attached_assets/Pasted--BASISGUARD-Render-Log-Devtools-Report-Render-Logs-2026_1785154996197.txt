@@ -1,0 +1,106 @@
+# BASISGUARD Render Log & Devtools Report
+
+## Render Logs
+
+2026-07-27T11:13:04.278378452Z ==> Downloading cache...
+2026-07-27T11:13:04.303462044Z ==> Cloning from https://github.com/CreoDAMO/BasisGuard
+2026-07-27T11:13:05.346123815Z ==> Checking out commit baca238f5f0c5e56392807ffca464f271d461997 in branch main
+2026-07-27T11:13:10.932022994Z ==> Downloaded 194MB in 2s. Extraction took 4s.
+2026-07-27T11:13:11.637352403Z ==> Installing dependencies with pnpm...
+2026-07-27T11:13:11.697861569Z ==> Using Node.js version 24.14.1 (default)
+2026-07-27T11:13:11.697864053Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2026-07-27T11:13:12.984779762Z ==> Running build command 'pnpm --filter @workspace/basisguard run build'...
+2026-07-27T11:13:13.332328816Z 
+2026-07-27T11:13:13.332354148Z > @workspace/basisguard@0.0.0 build /opt/render/project/src/artifacts/basisguard
+2026-07-27T11:13:13.332358686Z > vite build --config vite.config.ts
+2026-07-27T11:13:13.332359921Z 
+2026-07-27T11:13:13.544625556Z vite v7.3.6 building client environment for production...
+2026-07-27T11:13:13.591952969Z transforming...
+2026-07-27T11:13:14.096769829Z src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-27T11:13:14.721978717Z src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-27T11:13:14.723946762Z src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-27T11:13:14.733462816Z src/components/ui/sidebar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-27T11:13:14.921336926Z src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+2026-07-27T11:13:16.616419888Z ✓ 2841 modules transformed.
+2026-07-27T11:13:17.017966195Z rendering chunks...
+2026-07-27T11:13:17.031455708Z computing gzip size...
+2026-07-27T11:13:17.059196144Z dist/public/index.html                     1.37 kB │ gzip:   0.54 kB
+2026-07-27T11:13:17.059205736Z dist/public/assets/index-D51MtQRq.css    156.96 kB │ gzip:  23.49 kB
+2026-07-27T11:13:17.059211325Z dist/public/assets/index-DzoN1RzR.js   1,169.50 kB │ gzip: 325.61 kB
+2026-07-27T11:13:17.059220618Z 
+2026-07-27T11:13:17.059222353Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-07-27T11:13:17.05922394Z - Using dynamic import() to code-split the application
+2026-07-27T11:13:17.059227565Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-07-27T11:13:17.059228823Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-07-27T11:13:17.059362361Z ✓ built in 3.50s
+2026-07-27T11:13:18.596714711Z ==> Uploading build...
+2026-07-27T11:13:18.730114738Z ==> Your site is live 🎉
+
+## Build Passed but lets look at the errors
+
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+
+
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+
+src/components/ui/sidebar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+
+src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+
+## Devtools Report
+
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+basisguard-api.onrender.com/api/notifications/count:1  Failed to load resource: net::ERR_FAILED
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+index-DzoN1RzR.js:63  GET https://basisguard-api.onrender.com/api/notifications/count net::ERR_FAILED 401 (Unauthorized)
+h @ index-DzoN1RzR.js:63
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+index-DzoN1RzR.js:63  GET https://basisguard-api.onrender.com/api/notifications/count net::ERR_FAILED 401 (Unauthorized)
+h @ index-DzoN1RzR.js:63
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+index-DzoN1RzR.js:63  GET https://basisguard-api.onrender.com/api/notifications/count net::ERR_FAILED 401 (Unauthorized)
+h @ index-DzoN1RzR.js:63
+dashboard:1 Access to fetch at 'https://basisguard-api.onrender.com/api/notifications/count' from origin 'https://basisguard.site' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+

@@ -18,3 +18,4 @@
 - [DB schema build step](db-schema-build.md) — lib/db has no build script; after adding new schema files, run `npx tsc -b lib/db/tsconfig.json` to emit .d.ts files before typechecking api-server (project references read dist/, not src/)
 - [Price oracle cache in tests](price-oracle-cache.md) — priceOracle.ts cache is module-level; call clearCache() in beforeEach or tests share stale cache and fetch spy never fires
 - [FIFO lot wiring](fifo-lot-wiring.md) — createPositionFromClassification auto-creates lots (acquisition) or FIFO-matches (disposition) when assetSymbol+quantity are provided; all wrapped in db.transaction()
+- [Replit workflow ports](replit-workflow-ports.md) — imported artifact workflows may be unregistered; manually configured commands must export each service's expected PORT
