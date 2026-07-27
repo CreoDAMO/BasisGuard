@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { API } from "@/lib/api-base";
 import { CreditCard, Zap, Building2, ShieldCheck, CheckCircle2, XCircle, Clock, ArrowRight, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,10 +45,8 @@ const PAYMENT_STATUS_BADGE: Record<string, { label: string; className: string }>
   expired: { label: "Expired", className: "text-zinc-500 border-zinc-700" },
 };
 
-const baseUrl = import.meta.env.BASE_URL;
-
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${baseUrl}api${path}`, {
+  const res = await fetch(`${API}/api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,

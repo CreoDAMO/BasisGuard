@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+import { API } from "@/lib/api-base";
+const BASE = API;
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API } from "@/lib/api-base";
 import {
   useGetAuditPackage,
   useGetCommentLetter,
@@ -84,7 +85,7 @@ export default function ExportPage() {
     { query: { enabled: false, queryKey: getGetCpaHandoffQueryKey({ tax_year: taxYear }) } }
   );
 
-  const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+  const BASE = API;
 
   const handleExport = async () => {
     setIsExporting(true);

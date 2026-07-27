@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { Bell, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API } from "@/lib/api-base";
 
 interface Prefs {
   stale_alerts: boolean;
@@ -19,7 +20,7 @@ export default function NotificationPreferencesPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch("/api/notifications/preferences", { credentials: "include" })
+    fetch(`${API}/api/notifications/preferences`, { credentials: "include" })
       .then((r) => r.json())
       .then((d: Prefs) => setPrefs(d))
       .catch(() => {
@@ -31,7 +32,7 @@ export default function NotificationPreferencesPage() {
     if (!prefs) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/notifications/preferences", {
+      const res = await fetch(`${API}/api/notifications/preferences`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

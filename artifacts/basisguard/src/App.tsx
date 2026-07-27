@@ -46,12 +46,11 @@ import { Link } from "wouter";
 // dashboard for the static site service.
 
 import { setBaseUrl } from "@workspace/api-client-react";
+import { API } from "@/lib/api-base";
 
-const _apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
-if (_apiBase) setBaseUrl(_apiBase);
+if (API) setBaseUrl(API);
 
-/** Prepend the API origin to a relative /api/… path. Safe to call from any component. */
-export const API = _apiBase;
+export { API };
 
 // ── Clerk config ────────────────────────────────────────────────────────────
 

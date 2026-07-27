@@ -17,7 +17,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+import { API } from "@/lib/api-base";
+const BASE = API;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

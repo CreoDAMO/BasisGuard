@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useListPositions } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
+import { API } from "@/lib/api-base";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,7 +22,7 @@ export default function PositionsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "requires_review" | "signed_off">("all");
   const [chainFilter, setChainFilter] = useState<string>("all");
 
-  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch("/api/chains").then(r => r.json()) });
+  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch(`${API}/api/chains`, { credentials: "include" }).then(r => r.json()) });
 
   const queryParams: any = {};
   if (tier !== "all") queryParams.tier = tier;
@@ -111,7 +112,7 @@ export default function PositionsPage() {
                   <TableCell className="text-center"><Skeleton className="h-6 w-24 mx-auto" /></TableCell>
                 </TableRow>
               ))
-            ) : positionsData?.items.length === 0 ? (
+            ) : positionsData?.items?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-48 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center">
@@ -121,7 +122,7 @@ export default function PositionsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              positionsData?.items.map((pos) => (
+              positionsData?.items?.map((pos) => (
                 <TableRow 
                   key={pos.id} 
                   className="border-border/50 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -159,9 +160,9 @@ export default function PositionsPage() {
           </TableBody>
         </Table>
         
-        {positionsData && positionsData.items.length > 0 && (
+        {positionsData && (positionsData.items?.length ?? 0) > 0 && (
           <div className="p-4 border-t border-border/50 bg-muted/20 text-xs font-mono text-muted-foreground flex justify-between items-center mt-auto">
-            <span>Showing {positionsData.items.length} of {positionsData.total} records</span>
+            <span>Showing {positionsData.items?.length ?? 0} of {positionsData.total} records</span>
             <div className="flex gap-2">
               <button disabled className="px-3 py-1 border border-border/50 rounded disabled:opacity-50">Prev</button>
               <button disabled className="px-3 py-1 border border-border/50 rounded disabled:opacity-50">Next</button>

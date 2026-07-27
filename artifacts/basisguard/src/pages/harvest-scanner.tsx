@@ -37,7 +37,8 @@ interface HarvestResult {
   candidates: HarvestCandidate[];
 }
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+import { API } from "@/lib/api-base";
+const BASE = API;
 
 function fmtUsd(v: number | null): string {
   if (v == null) return "—";

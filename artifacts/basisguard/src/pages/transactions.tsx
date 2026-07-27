@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { API } from "@/lib/api-base";
+const BASE = API;
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

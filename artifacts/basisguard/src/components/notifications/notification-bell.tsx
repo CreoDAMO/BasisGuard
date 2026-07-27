@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, X, CheckCheck, AlertCircle, Clock, Loader2 } from "lucide-react";
-import { API } from "@/App";
+import { API } from "@/lib/api-base";
 
 interface Notification {
   id: string;

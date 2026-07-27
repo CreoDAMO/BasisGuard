@@ -1,6 +1,6 @@
 import React from "react";
 import { useGetDashboardSummary, useGetRecentActivity } from "@workspace/api-client-react";
-import { API } from "@/App";
+import { API } from "@/lib/api-base";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
