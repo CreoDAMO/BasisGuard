@@ -1,5 +1,6 @@
 import React from "react";
 import { useGetDashboardSummary, useGetRecentActivity } from "@workspace/api-client-react";
+import { API } from "@/App";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +24,8 @@ const CHAIN_DOT: Record<string, string> = {
 export default function DashboardPage() {
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
   const { data: recentActivity, isLoading: isRecentLoading } = useGetRecentActivity({ limit: 5 });
-  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch("/api/chains").then(r => r.json()) });
-  const { data: protocols } = useQuery<Protocol[]>({ queryKey: ["protocols"], queryFn: () => fetch("/api/protocols").then(r => r.json()) });
+  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch(`${API}/api/chains`, { credentials: "include" }).then(r => r.json()) });
+  const { data: protocols } = useQuery<Protocol[]>({ queryKey: ["protocols"], queryFn: () => fetch(`${API}/api/protocols`, { credentials: "include" }).then(r => r.json()) });
 
   const getTierColor = (tier: string) => {
     switch(tier) {

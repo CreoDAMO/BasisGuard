@@ -39,6 +39,20 @@ import { LegalFooter } from "./components/legal/LegalFooter";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
+// ── API base URL ─────────────────────────────────────────────────────────────
+// In production (separate Render static site + API service) all /api/* calls
+// must go to the API service's origin, not the static site.  Set
+// VITE_API_BASE_URL=https://basisguard-api.onrender.com in the Render
+// dashboard for the static site service.
+
+import { setBaseUrl } from "@workspace/api-client-react";
+
+const _apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+if (_apiBase) setBaseUrl(_apiBase);
+
+/** Prepend the API origin to a relative /api/… path. Safe to call from any component. */
+export const API = _apiBase;
+
 // ── Clerk config ────────────────────────────────────────────────────────────
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;

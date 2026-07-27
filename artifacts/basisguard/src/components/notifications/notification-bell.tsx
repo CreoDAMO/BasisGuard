@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Bell, X, CheckCheck, AlertCircle, Clock, Loader2 } from "lucide-react";
+import { API } from "@/App";
 
 interface Notification {
   id: string;
@@ -68,7 +69,7 @@ export function NotificationBell() {
 
   async function fetchCount() {
     try {
-      const res = await fetch("/api/notifications/count", { credentials: "include" });
+      const res = await fetch(`${API}/api/notifications/count`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json() as { unread: number };
         setUnread(data.unread ?? 0);
@@ -84,11 +85,11 @@ export function NotificationBell() {
     setLoading(true);
     try {
       // Refresh auto-generated alerts first
-      await fetch("/api/notifications/generate", {
+      await fetch(`${API}/api/notifications/generate`, {
         method: "POST",
         credentials: "include",
       });
-      const res = await fetch("/api/notifications?limit=20", { credentials: "include" });
+      const res = await fetch(`${API}/api/notifications?limit=20`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json() as Notification[];
         setItems(data);
@@ -102,7 +103,7 @@ export function NotificationBell() {
 
   async function markRead(id: string) {
     try {
-      await fetch(`/api/notifications/${id}/read`, {
+      await fetch(`${API}/api/notifications/${id}/read`, {
         method: "POST",
         credentials: "include",
       });
@@ -113,7 +114,7 @@ export function NotificationBell() {
 
   async function markAllRead() {
     try {
-      await fetch("/api/notifications/read-all", {
+      await fetch(`${API}/api/notifications/read-all`, {
         method: "POST",
         credentials: "include",
       });

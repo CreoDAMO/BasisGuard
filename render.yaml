@@ -83,5 +83,8 @@ services:
         value: /   # frontend served at root; vite.config.ts reads this as `base`
       - key: VITE_CLERK_PUBLISHABLE_KEY
         sync: false   # same value as CLERK_PUBLISHABLE_KEY
+      - key: VITE_API_BASE_URL
+        sync: false   # REQUIRED: set to https://basisguard-api.onrender.com (no trailing slash)
+                      # This tells the frontend where to send /api/* requests in production.
       - key: VITE_CLERK_PROXY_URL
-        sync: false   # set to: https://basisguard-api.onrender.com/api/__clerk
+        sync: false   # no longer used in code; leave blank or remove from Render dashboard
