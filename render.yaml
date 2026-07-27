@@ -57,7 +57,7 @@ services:
       - key: SESSION_SECRET
         sync: false   # set in Render dashboard → Environment
       - key: CORS_ALLOWED_ORIGINS
-        sync: false   # set to: https://basisguard-web.onrender.com (your frontend URL)
+        value: https://basisguard.site,https://basisguard-web.onrender.com
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   # Note: static sites do not support a region field.

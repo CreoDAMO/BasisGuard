@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { API } from "@/lib/api";
 
 interface WashSalePair {
   loss_position_id: string;
@@ -37,7 +38,7 @@ interface HarvestResult {
   candidates: HarvestCandidate[];
 }
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+const BASE = API;
 
 function fmtUsd(v: number | null): string {
   if (v == null) return "—";
@@ -76,7 +77,7 @@ export default function HarvestScannerPage() {
       const params = new URLSearchParams();
       if (taxYear) params.set("tax_year", taxYear);
       if (walletId.trim()) params.set("wallet_id", walletId.trim());
-      const resp = await fetch(`${BASE}/api/positions/harvest-candidates?${params}`);
+      const resp = await fetch(`${BASE}/api/positions/harvest-candidates?${params}`, { credentials: "include" });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error((body as any).error ?? `HTTP ${resp.status}`);

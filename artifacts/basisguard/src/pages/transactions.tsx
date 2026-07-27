@@ -4,10 +4,11 @@ import { ArrowUpDown, Upload, RefreshCw, AlertCircle, ArrowDownLeft, ArrowUpRigh
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { API } from "@/lib/api";
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = API;
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {

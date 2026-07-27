@@ -17,6 +17,7 @@ import { useLocation } from "wouter";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { CheckSquare, ArrowRight, CheckCircle2, Users, X, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { API } from "@/lib/api";
 
 interface StaleItem {
   id: string;
@@ -37,7 +38,7 @@ export default function ReviewQueuePage() {
   const { data: queue, isLoading } = useGetReviewQueue();
   const { data: staleData, isLoading: staleLoading } = useQuery<{ stale_count: number; items: StaleItem[] }>({
     queryKey: ["stale-positions"],
-    queryFn: () => fetch("/api/intelligence/stale").then(r => r.json()),
+    queryFn: () => fetch(`${API}/api/intelligence/stale`, { credentials: "include" }).then(r => r.json()),
   });
   const batchSignoff = useBatchSignoffPositions();
 

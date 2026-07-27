@@ -38,6 +38,7 @@ import { UpgradeModal } from "./components/billing/UpgradeModal";
 import { LegalFooter } from "./components/legal/LegalFooter";
 import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
+import { API } from "@/lib/api";
 
 // ── API base URL ─────────────────────────────────────────────────────────────
 // In production (separate Render static site + API service) all /api/* calls
@@ -47,11 +48,10 @@ import { Link } from "wouter";
 
 import { setBaseUrl } from "@workspace/api-client-react";
 
-const _apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
-if (_apiBase) setBaseUrl(_apiBase);
+if (API) setBaseUrl(API);
 
 /** Prepend the API origin to a relative /api/… path. Safe to call from any component. */
-export const API = _apiBase;
+export { API };
 
 // ── Clerk config ────────────────────────────────────────────────────────────
 
