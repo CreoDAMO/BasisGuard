@@ -16,9 +16,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { API } from "@/lib/api";
 
-const BASE = API;
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -170,7 +169,6 @@ function NewLotDialog({ open, onClose, onCreated }: NewLotDialogProps) {
       const resp = await fetch(`${BASE}/api/lots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(body),
       });
       if (!resp.ok) {
@@ -292,7 +290,6 @@ function CloseLotDialog({ lot, onClose, onUpdated }: CloseLotDialogProps) {
       const resp = await fetch(`${BASE}/api/lots/${lot.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(body),
       });
       if (!resp.ok) {
@@ -399,8 +396,8 @@ export default function LotsPage() {
       if (walletFilter.trim()) summaryParams.set("wallet_id", walletFilter.trim());
 
       const [listResp, summaryResp] = await Promise.all([
-        fetch(`${BASE}/api/lots?${params}`, { credentials: "include" }),
-        fetch(`${BASE}/api/lots/summary?${summaryParams}`, { credentials: "include" }),
+        fetch(`${BASE}/api/lots?${params}`),
+        fetch(`${BASE}/api/lots/summary?${summaryParams}`),
       ]);
 
       if (!listResp.ok || !summaryResp.ok) throw new Error(`HTTP ${listResp.status}`);

@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { API } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -45,8 +44,10 @@ const PAYMENT_STATUS_BADGE: Record<string, { label: string; className: string }>
   expired: { label: "Expired", className: "text-zinc-500 border-zinc-700" },
 };
 
+const baseUrl = import.meta.env.BASE_URL;
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}/api${path}`, {
+  const res = await fetch(`${baseUrl}api${path}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,

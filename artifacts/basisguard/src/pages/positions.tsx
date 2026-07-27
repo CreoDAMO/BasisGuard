@@ -12,7 +12,6 @@ import { Link, useLocation } from "wouter";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { Search, Filter, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { PositionRecordTier } from "@workspace/api-client-react";
-import { API } from "@/lib/api";
 
 interface Chain { id: string; name: string; slug: string; }
 
@@ -22,7 +21,7 @@ export default function PositionsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "requires_review" | "signed_off">("all");
   const [chainFilter, setChainFilter] = useState<string>("all");
 
-  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch(`${API}/api/chains`, { credentials: "include" }).then(r => r.json()) });
+  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch("/api/chains").then(r => r.json()) });
 
   const queryParams: any = {};
   if (tier !== "all") queryParams.tier = tier;

@@ -5,7 +5,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link2, Layers, ChevronRight, Network, Box } from "lucide-react";
-import { API } from "@/lib/api";
 
 interface Chain {
   id: string;
@@ -32,14 +31,14 @@ interface Protocol {
 function useChains() {
   return useQuery<Chain[]>({
     queryKey: ["chains"],
-    queryFn: () => fetch(`${API}/api/chains`, { credentials: "include" }).then((r) => r.json()),
+    queryFn: () => fetch("/api/chains").then((r) => r.json()),
   });
 }
 
 function useProtocols() {
   return useQuery<Protocol[]>({
     queryKey: ["protocols"],
-    queryFn: () => fetch(`${API}/api/protocols`, { credentials: "include" }).then((r) => r.json()),
+    queryFn: () => fetch("/api/protocols").then((r) => r.json()),
   });
 }
 

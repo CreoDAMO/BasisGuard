@@ -433,17 +433,6 @@ psql $DATABASE_URL -f scripts/seed-protocols.sql
 4. **Chains & Protocols** — `psql $DATABASE_URL -f scripts/seed-protocols.sql`
 5. **SESSION_SECRET** — add as a Replit Secret.
 
-### Current Replit development setup
-
-The imported project uses two configured Replit workflows:
-
-| Workflow | Command | Port |
-|---|---|---|
-| `artifacts/api-server: API Server` | `pnpm --filter @workspace/api-server run dev` | `8080` |
-| `artifacts/basisguard: web` | `pnpm --filter @workspace/basisguard run dev` | `18252` |
-
-The development database has been initialized with the Drizzle schema and the idempotent citation, chain, and protocol seeds. The API health check is available at `GET /api/healthz`; authenticated screens require the Clerk secrets above plus `VITE_CLERK_PUBLISHABLE_KEY` for the frontend.
-
 ---
 
 ## Render Deployment
