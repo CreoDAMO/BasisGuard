@@ -177,7 +177,7 @@ export default function DashboardPage() {
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={60}>
-                    {summary.tier_breakdown.map((entry, index) => (
+                    {(summary.tier_breakdown ?? []).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getTierColor(entry.tier)} />
                     ))}
                   </Bar>

@@ -43,10 +43,6 @@ import { Link } from "wouter";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
-// Empty in dev (intentional). On Render set VITE_CLERK_PROXY_URL to
-// https://<api-service>.onrender.com/api/__clerk as a build-time env var.
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
-
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // Clerk pushes full paths; wouter's setLocation prepends the base — strip it.
@@ -250,7 +246,6 @@ function ClerkProviderWithRoutes() {
   return (
     <ClerkProvider
       publishableKey={clerkPubKey!}
-      proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}

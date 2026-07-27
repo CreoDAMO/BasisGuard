@@ -312,10 +312,6 @@ export default function PrivacyPolicyPage() {
           </div>
           <h1 className="mt-6 font-serif text-4xl text-white sm:text-5xl">Privacy Policy</h1>
           <p className="mt-4 text-sm text-zinc-500">Last updated: July 25, 2026</p>
-          <div className="mt-6 rounded border border-amber-900/60 bg-amber-950/20 px-4 py-3 text-sm leading-6 text-amber-200/80">
-            Draft prepared for legal review. This document is not a substitute for review by a
-            licensed attorney familiar with your jurisdiction and business structure.
-          </div>
           <p className="mt-6 leading-7">
             This Privacy Policy describes how BasisGuard (&quot;we,&quot; &quot;us,&quot; &quot;the Service&quot;)
             collects, uses, stores, and protects information when you use the BasisGuard platform.

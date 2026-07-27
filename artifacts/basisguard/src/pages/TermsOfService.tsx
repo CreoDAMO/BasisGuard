@@ -48,10 +48,6 @@ export default function TermsOfServicePage() {
           </div>
           <h1 className="mt-6 font-serif text-4xl text-white sm:text-5xl">Terms of Service</h1>
           <p className="mt-4 text-sm text-zinc-500">Last updated: July 25, 2026</p>
-          <div className="mt-6 rounded border border-amber-900/60 bg-amber-950/20 px-4 py-3 text-sm leading-6 text-amber-200/80">
-            Draft prepared for legal review. This document is not a substitute for review by a
-            licensed attorney, particularly Sections 4, 6, and 9.
-          </div>
           <p className="mt-6 leading-7">
             These Terms govern your use of BasisGuard, a workflow and evidence management tool for
             cryptocurrency tax compliance.
