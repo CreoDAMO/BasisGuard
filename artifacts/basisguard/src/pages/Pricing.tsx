@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation } from "wouter";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 import { Check, Zap, Building2, ShieldCheck, Mail, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -120,10 +121,9 @@ export default function PricingPage() {
 
     // Create Commerce charge and redirect to hosted checkout
     try {
-      const res = await fetch(`${API}/api/billing/checkout`, {
+      const res = await authFetch(`${API}/api/billing/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ plan: planId, billing_period: annual ? "annual" : "monthly" }),
       });
       if (!res.ok) throw new Error(await res.text());

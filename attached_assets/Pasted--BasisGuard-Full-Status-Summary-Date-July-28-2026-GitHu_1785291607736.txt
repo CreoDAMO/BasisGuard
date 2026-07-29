@@ -1,0 +1,145 @@
+# BasisGuard — Full Status Summary  
+**Date:** July 28, 2026  
+
+**GitHub:** https://github.com/CreoDAMO/BasisGuard  
+**Production site:** https://basisguard.site  
+**API:** https://basisguard-api.onrender.com  
+
+---
+
+## 1. What BasisGuard Is
+
+**BasisGuard** is a professional crypto tax compliance platform built for CPAs and power users. It treats every classification as an **audit-ready Position Record** with:
+
+- A cited IRS authority  
+- An IRC §6694 / Circular 230 confidence tier  
+- A plain-language rationale  
+- Immutable sign-off and supersession chains  
+
+**Core differentiators vs generic tools (Koinly, CoinLedger, TokenTax):**
+
+1. **Defensibility** — every position requires a real citation, not a vendor assumption  
+2. **Guidance gaps** — DeFi/LP/bridge/NFT events are explicitly flagged as open-gap and held for preparer review  
+3. **Wallet-by-wallet basis** — aligned with Rev. Proc. 2024-28  
+4. **Evidence exports** — audit packages, CPA hand-off, comment-letter aggregates  
+
+**Entity / commercial intent:** SSDF Inc. (Florida). Sellable as tax software (no federal license required unless e-filing is added). Payments designed around **Coinbase Commerce (USDC)**.
+
+---
+
+## 2. Product Surface (Built)
+
+| Area | Status |
+|------|--------|
+| Evidence Log / Position Records | Live |
+| Confidence tiers (Will → Reasonable Basis) | Live |
+| Authority Citations Library | Live (seeded IRS authorities; T.D. 10021 marked repealed) |
+| Treatment Profiles + supersession | Live |
+| Review Queue + batch sign-off | Live |
+| Stale position detection | Live |
+| Lot Inventory + FIFO matching | Live |
+| Price oracle (CoinGecko) | Live |
+| Tax Optimizer (simulate / harvest / estate §1014) | Live |
+| Protocol adapters (Aave V3, Uniswap V3, Base Bridge) | Live |
+| Exchange connectors (Coinbase CDP + legacy, Kraken, Gemini) | Live |
+| Chain/Protocol registry + CPA submissions | Live |
+| Notifications | Live |
+| Billing schema + plan gates + Commerce client + pricing UI | Built (needs live Commerce keys) |
+| Legal pages `/privacy`, `/terms` | Draft |
+| Access control, immutability, citation cascade protection | Live |
+| Tests | 170–250+ reported passing over the project lifecycle |
+
+**Stack:** React + Vite, Tailwind, TanStack Query, wouter · Express 5, OpenAPI/Orval, Zod · PostgreSQL + Drizzle · Clerk · viem · pnpm monorepo · CoinGecko · Coinbase Commerce (planned).
+
+---
+
+## 3. Regulatory / Design Stance
+
+- Crypto as **property** (Notice 2014-21), not currency  
+- Conservative defaults; open-gap events never silently “solved”  
+- Adaptation Engine / Position Records as evidence base for future Treasury comment letters  
+- Explicit disclaimers: not tax/legal advice; preparer review required  
+- Legal packaging in progress: ToS, Privacy Policy (Florida breach rules), EULA for self-host  
+
+**Key authorities in product:** IRC §1001, §1014, §6694 · Notice 2014-21 · Rev. Rul. 2019-24, 2023-14 · Notice 2023-27, 2024-57 · Rev. Proc. 2024-28 · T.D. 10000 (active) · T.D. 10021 (repealed — historical only) · *Cottage Savings*.
+
+---
+
+## 4. Deployment Architecture
+
+| Service | Platform | URL |
+|---------|----------|-----|
+| Frontend (static) | Render | https://basisguard.site |
+| API | Render | https://basisguard-api.onrender.com |
+| Repo | GitHub | https://github.com/CreoDAMO/BasisGuard |
+
+**Env (as configured):**
+
+**API:** `CLERK_*`, `CORS_ALLOWED_ORIGINS`, `DATABASE_URL`, `NODE_ENV`, `SESSION_SECRET`, etc.  
+
+**Web:** `VITE_API_BASE_URL`, `VITE_CLERK_PUBLISHABLE_KEY`, `BASE_PATH` (proxy URL optional / not required for DNS setup).
+
+**CORS should be:**  
+`https://basisguard.site,https://www.basisguard.site,https://basisguard-web.onrender.com`
+
+---
+
+## 5. Current Production Blocker (Critical)
+
+**Cross-origin auth.**
+
+- App origin: `basisguard.site`  
+- API origin: `basisguard-api.onrender.com`  
+
+Clerk session cookies are **not** sent to a different site. Frontend calls use `credentials: "include"` only → API returns **401** → non-array JSON → pages crash with:
+
+- `/positions` → `d?.map is not a function`  
+- `/chains` → `e?.filter is not a function`  
+- `/lots` → HTTP 401  
+- `/transactions` → Unauthorized  
+
+The on-screen “Clerk domain or proxy misconfiguration” text is largely a **generic error-boundary message**; the underlying failure is missing **Bearer tokens** on API requests.
+
+**Required fix (Clerk cross-origin pattern):**
+
+```ts
+const token = await getToken(); // from useAuth()
+fetch(`${API}/api/...`, {
+  credentials: "include",
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+Apply to all authenticated fetches and the generated API client. Optionally harden with `Array.isArray(data) ? data : []` so failures degrade instead of white-screening.
+
+Secondary checks: API not sleeping on free tier; CORS commas correct; frontend rebuilt after any `VITE_*` change (clear build cache).
+
+---
+
+## 6. Commercial / Go-to-Market Notes
+
+- **Sellable** as software; e-file would require EFIN later  
+- **Payments:** Coinbase Commerce (USDC) preferred over Stripe for crypto-native positioning  
+- **Plans sketched:** Free / Pro ($49/mo) / Firm ($149/mo) / Enterprise  
+- **Outreach drafts:** Base ecosystem grant one-pager, Coinbase Ventures pitch, CPA beta invitation  
+- **Packaging still needed:** live Commerce credentials, legal review of Privacy/ToS, SOC 2 / E&O for firm sales, production migrations for billing tables  
+
+**Deployment preference discussed:** Render (or Railway/Fly) + Neon Postgres for PITR; Vercel fine for static frontend only.
+
+---
+
+## 7. What’s Left (Prioritized)
+
+1. **Wire `getToken()` + Bearer on all API clients** (unblocks production UI)  
+2. Harden array responses on list pages  
+3. Confirm CORS + API health + clear-cache frontend deploy  
+4. Live Coinbase Commerce keys + e2e billing test  
+5. DB migrations for subscriptions/payments in production  
+6. Legal placeholder fill + review  
+7. Optional: CPA beta, Base grant / Ventures outreach  
+
+---
+
+## 8. One-Line Status
+
+**BasisGuard is a substantial, CPA-oriented crypto tax evidence platform with a strong feature set and a live dual-host deployment at [basisguard.site](https://basisguard.site) / [GitHub](https://github.com/CreoDAMO/BasisGuard) — currently blocked in production by cross-origin Clerk auth (Bearer token not attached), not by missing product scope.**

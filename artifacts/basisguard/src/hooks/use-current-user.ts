@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 
 export interface CurrentUser {
   id: string;
@@ -18,7 +19,7 @@ export function useCurrentUser() {
   return useQuery<CurrentUser>({
     queryKey: ["me"],
     queryFn: async () => {
-      const res = await fetch(`${API}/api/me`, { credentials: "include" });
+      const res = await authFetch(`${API}/api/me`);
       if (!res.ok) throw new Error("Failed to fetch user profile");
       return res.json();
     },

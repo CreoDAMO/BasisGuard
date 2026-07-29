@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,7 @@ function useSubmissions(status = "all") {
   return useQuery<Submission[]>({
     queryKey: ["admin-submissions", status],
     queryFn: async () => {
-      const r = await fetch(`${API}/api/admin/submissions?status=${status}`, { credentials: "include" });
+      const r = await authFetch(`${API}/api/admin/submissions?status=${status}`);
       if (!r.ok) {
         if (r.status === 403) return []; // non-admin users see an empty list
         const body = await r.json().catch(() => ({})) as { error?: string };
@@ -121,7 +122,7 @@ function SubmitChainForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({ submitted_by: "", submitter_credential: "", name: "", slug: "", is_l2: false, parent_chain_slug: "", rpc_url: "", explorer_url: "", native_token: "" });
   const { toast } = useToast();
   const mutation = useMutation({
-    mutationFn: (data: typeof form) => fetch(`${API}/api/submit/chain`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ ...data, is_l2: data.is_l2 || undefined }) }).then((r) => r.json()),
+    mutationFn: (data: typeof form) => authFetch(`${API}/api/submit/chain`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...data, is_l2: data.is_l2 || undefined }) }).then((r) => r.json()),
     onSuccess: () => { toast({ title: "Chain submitted", description: "Your submission is pending admin review." }); onSuccess(); },
   });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
@@ -153,7 +154,7 @@ function SubmitProtocolForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({ submitted_by: "", submitter_credential: "", chain_slug: "", name: "", slug: "", documentation_url: "", notes: "" });
   const { toast } = useToast();
   const mutation = useMutation({
-    mutationFn: (data: typeof form) => fetch(`${API}/api/submit/protocol`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then((r) => r.json()),
+    mutationFn: (data: typeof form) => authFetch(`${API}/api/submit/protocol`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then((r) => r.json()),
     onSuccess: () => { toast({ title: "Protocol submitted", description: "Your submission is pending admin review." }); onSuccess(); },
   });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -185,7 +186,7 @@ export default function SubmissionsPage() {
 
   const approveMutation = useMutation({
     mutationFn: ({ id, type }: { id: string; type: "chain" | "protocol" }) =>
-      fetch(`${API}/api/admin/submissions/${type}/${id}/approve`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ reviewed_by: "admin" }) }).then((r) => r.json()),
+      authFetch(`${API}/api/admin/submissions/${type}/${id}/approve`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reviewed_by: "admin" }) }).then((r) => r.json()),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["admin-submissions"] });
       qc.invalidateQueries({ queryKey: ["chains"] });
@@ -198,7 +199,7 @@ export default function SubmissionsPage() {
   const rejectMutation = useMutation({
     mutationFn: ({ id, type }: { id: string; type: "chain" | "protocol" }) => {
       const reason = prompt("Rejection reason (optional):");
-      return fetch(`${API}/api/admin/submissions/${type}/${id}/reject`, { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ reviewed_by: "admin", rejection_reason: reason }) }).then((r) => r.json());
+      return authFetch(`${API}/api/admin/submissions/${type}/${id}/reject`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reviewed_by: "admin", rejection_reason: reason }) }).then((r) => r.json());
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-submissions"] }); toast({ title: "Rejected" }); },
   });

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { authFetch } from "@/lib/auth-fetch";
 import { Scissors, AlertTriangle, CheckCircle2, Info, Clock, TrendingDown, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,7 +78,7 @@ export default function HarvestScannerPage() {
       const params = new URLSearchParams();
       if (taxYear) params.set("tax_year", taxYear);
       if (walletId.trim()) params.set("wallet_id", walletId.trim());
-      const resp = await fetch(`${BASE}/api/positions/harvest-candidates?${params}`);
+      const resp = await authFetch(`${BASE}/api/positions/harvest-candidates?${params}`);
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error((body as any).error ?? `HTTP ${resp.status}`);

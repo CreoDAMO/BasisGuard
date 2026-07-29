@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 const BASE = API;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ function NewLotDialog({ open, onClose, onCreated }: NewLotDialogProps) {
       if (form.acquisition_tx_id.trim()) body.acquisition_tx_id = form.acquisition_tx_id.trim();
       if (form.notes.trim()) body.notes = form.notes.trim();
 
-      const resp = await fetch(`${BASE}/api/lots`, {
+      const resp = await authFetch(`${BASE}/api/lots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -288,7 +289,7 @@ function CloseLotDialog({ lot, onClose, onUpdated }: CloseLotDialogProps) {
       };
       if (partial && partialQty) body.quantity = parseFloat(partialQty);
 
-      const resp = await fetch(`${BASE}/api/lots/${lot.id}`, {
+      const resp = await authFetch(`${BASE}/api/lots/${lot.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -397,8 +398,8 @@ export default function LotsPage() {
       if (walletFilter.trim()) summaryParams.set("wallet_id", walletFilter.trim());
 
       const [listResp, summaryResp] = await Promise.all([
-        fetch(`${BASE}/api/lots?${params}`),
-        fetch(`${BASE}/api/lots/summary?${summaryParams}`),
+        authFetch(`${BASE}/api/lots?${params}`),
+        authFetch(`${BASE}/api/lots/summary?${summaryParams}`),
       ]);
 
       if (!listResp.ok || !summaryResp.ok) throw new Error(`HTTP ${listResp.status}`);

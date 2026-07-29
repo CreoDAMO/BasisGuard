@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useListPositions } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +23,7 @@ export default function PositionsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "requires_review" | "signed_off">("all");
   const [chainFilter, setChainFilter] = useState<string>("all");
 
-  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch(`${API}/api/chains`, { credentials: "include" }).then(r => r.json()) });
+  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => authFetch(`${API}/api/chains`).then(r => r.json()) });
 
   const queryParams: any = {};
   if (tier !== "all") queryParams.tier = tier;

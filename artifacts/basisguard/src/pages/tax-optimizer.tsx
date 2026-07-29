@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 const BASE = API;
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -125,7 +126,7 @@ function SimulateTab() {
         quantity: quantity.trim(),
       });
       if (walletId.trim()) params.set("wallet_id", walletId.trim());
-      const resp = await fetch(`${BASE}/api/tax-optimizer/simulate?${params}`, { credentials: "include" });
+      const resp = await authFetch(`${BASE}/api/tax-optimizer/simulate?${params}`);
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error((body as any).error ?? `HTTP ${resp.status}`);
@@ -389,7 +390,7 @@ function HarvestTab() {
     try {
       const params = new URLSearchParams({ min_loss_usd: minLoss });
       if (walletId.trim()) params.set("wallet_id", walletId.trim());
-      const resp = await fetch(`${BASE}/api/tax-optimizer/harvest?${params}`, { credentials: "include" });
+      const resp = await authFetch(`${BASE}/api/tax-optimizer/harvest?${params}`);
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({}));
         throw new Error((body as any).error ?? `HTTP ${resp.status}`);
@@ -587,10 +588,9 @@ function EstateTab() {
       if (symbols.trim()) {
         body.asset_symbols = symbols.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
       }
-      const resp = await fetch(`${BASE}/api/tax-optimizer/estate-step-up`, {
+      const resp = await authFetch(`${BASE}/api/tax-optimizer/estate-step-up`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(body),
       });
       if (!resp.ok) {

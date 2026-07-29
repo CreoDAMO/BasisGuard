@@ -5,13 +5,13 @@ import { Link2, Link2Off, RefreshCw, AlertCircle, CheckCircle2, ExternalLink } f
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 const BASE = API;
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authFetch(`${BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    credentials: "include",
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

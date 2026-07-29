@@ -45,10 +45,30 @@ import { Link } from "wouter";
 // VITE_API_BASE_URL=https://basisguard-api.onrender.com in the Render
 // dashboard for the static site service.
 
-import { setBaseUrl } from "@workspace/api-client-react";
+import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import { API } from "@/lib/api-base";
+import { registerTokenGetter } from "@/lib/auth-fetch";
 
 if (API) setBaseUrl(API);
+
+/**
+ * Wires Clerk's getToken() into both the Orval-generated API client
+ * (setAuthTokenGetter) and the manual authFetch utility (registerTokenGetter).
+ * Must render inside <ClerkProvider> so useAuth() is available.
+ */
+function ClerkTokenWirer() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    const getter = () => getToken();
+    setAuthTokenGetter(getter);
+    registerTokenGetter(getter);
+    return () => {
+      setAuthTokenGetter(null);
+      registerTokenGetter(null);
+    };
+  }, [getToken]);
+  return null;
+}
 
 export { API };
 
@@ -270,6 +290,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkTokenWirer />
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
           <BillingProvider>

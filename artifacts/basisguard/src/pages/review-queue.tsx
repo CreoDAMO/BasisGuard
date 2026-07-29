@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useGetReviewQueue, useBatchSignoffPositions, getGetReviewQueueQueryKey } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,7 @@ export default function ReviewQueuePage() {
   const { data: queue, isLoading } = useGetReviewQueue();
   const { data: staleData, isLoading: staleLoading } = useQuery<{ stale_count: number; items: StaleItem[] }>({
     queryKey: ["stale-positions"],
-    queryFn: () => fetch(`${API}/api/intelligence/stale`, { credentials: "include" }).then(r => r.json()),
+    queryFn: () => authFetch(`${API}/api/intelligence/stale`).then(r => r.json()),
   });
   const batchSignoff = useBatchSignoffPositions();
 

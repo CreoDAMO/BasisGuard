@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 import { CreditCard, Zap, Building2, ShieldCheck, CheckCircle2, XCircle, Clock, ArrowRight, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,8 +47,7 @@ const PAYMENT_STATUS_BADGE: Record<string, { label: string; className: string }>
 };
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}/api${path}`, {
-    credentials: "include",
+  const res = await authFetch(`${API}/api${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });

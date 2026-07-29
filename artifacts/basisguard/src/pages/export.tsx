@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { API } from "@/lib/api-base";
+import { authFetch } from "@/lib/auth-fetch";
 import {
   useGetAuditPackage,
   useGetCommentLetter,
@@ -97,7 +98,7 @@ export default function ExportPage() {
         // Direct fetch — no generated hook yet for the dossier endpoint
         const params = new URLSearchParams({ tax_year: String(taxYear) });
         if (isRedacted) params.set("redact_pii", "true");
-        const resp = await fetch(`${BASE}/api/export/dossier?${params}`);
+        const resp = await authFetch(`${BASE}/api/export/dossier?${params}`);
         if (!resp.ok) {
           const body = await resp.json().catch(() => ({}));
           throw new Error((body as any).error ?? `HTTP ${resp.status}`);
