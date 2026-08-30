@@ -57,7 +57,7 @@ app.use(
     },
   }),
 );
-// Keep a copy of the raw payload for Coinbase Commerce webhook HMAC checks.
+// Keep a copy of the raw payload for Coinbase Business webhook HMAC checks.
 // The parsed body remains available to all normal JSON routes.
 app.use(
   express.json({

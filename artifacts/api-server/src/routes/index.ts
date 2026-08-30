@@ -25,8 +25,8 @@ const router: IRouter = Router();
 // Health check is public — monitoring tools must not need auth
 router.use(healthRouter);
 
-// Coinbase Commerce must be reachable without a Clerk session. The handler
-// authenticates the request with the Commerce webhook signature instead.
+// Coinbase Business checkouts must be reachable without a Clerk session.
+// The handler authenticates with the X-Hook0-Signature webhook HMAC instead.
 router.post("/billing/webhook", webhookHandler);
 
 // All subsequent routes require a valid Clerk session.
