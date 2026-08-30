@@ -119,6 +119,7 @@ const sections = [
               <tr><td className="px-4 py-3">Application hosting</td><td className="px-4 py-3">Render</td><td className="px-4 py-3">Application traffic; no persistent data storage beyond logs</td></tr>
               <tr><td className="px-4 py-3">Price data</td><td className="px-4 py-3">CoinGecko</td><td className="px-4 py-3">Asset symbols and dates only — no personal or account-identifying data</td></tr>
               <tr><td className="px-4 py-3">Exchange connections</td><td className="px-4 py-3">Coinbase, Kraken, Gemini</td><td className="px-4 py-3">Your supplied credentials to pull your own transaction history</td></tr>
+              <tr><td className="px-4 py-3">Payment processing</td><td className="px-4 py-3">Coinbase Business</td><td className="px-4 py-3">Checkout metadata (plan, billing period, account id); USDC settlement to SSDF Inc.'s Business account</td></tr>
             </tbody>
           </table>
         </div>

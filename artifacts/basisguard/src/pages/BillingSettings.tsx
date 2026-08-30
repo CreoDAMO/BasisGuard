@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import React, { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { API } from "@/lib/api-base";
 import { authFetch } from "@/lib/auth-fetch";
@@ -60,6 +60,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export default function BillingSettingsPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const [contactForm, setContactForm] = useState({ company: "", team_size: "", message: "" });
   const [showContact, setShowContact] = useState(() => new URLSearchParams(window.location.search).get("contact") === "1");
@@ -68,6 +69,40 @@ export default function BillingSettingsPage() {
     queryKey: ["billing-status"],
     queryFn: () => apiFetch<BillingStatus>("/billing/status"),
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkoutState = params.get("checkout");
+    const checkoutId = sessionStorage.getItem("bg_checkout_id");
+    if (!checkoutId || (checkoutState !== "success" && checkoutState !== "failed")) return;
+
+    if (checkoutState === "failed") {
+      sessionStorage.removeItem("bg_checkout_id");
+      toast({ title: "Payment not completed", description: "No charge was captured. You can retry from Pricing.", variant: "destructive" });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const result = await apiFetch<{ confirmed: boolean; status: string }>("/billing/confirm", {
+          method: "POST",
+          body: JSON.stringify({ checkout_id: checkoutId }),
+        });
+        sessionStorage.removeItem("bg_checkout_id");
+        if (result.confirmed) {
+          toast({ title: "Payment confirmed", description: "Your BasisGuard plan is now active." });
+          await queryClient.invalidateQueries({ queryKey: ["billing-status"] });
+        } else {
+          toast({
+            title: "Waiting for settlement",
+            description: `Checkout status: ${result.status}. We'll activate as soon as Coinbase Business confirms.`,
+          });
+        }
+      } catch (err) {
+        toast({ title: "Could not confirm payment", description: String(err), variant: "destructive" });
+      }
+    })();
+  }, [queryClient, toast]);
 
   const cancelMutation = useMutation({
     mutationFn: () => apiFetch<{ cancelled: boolean; access_until: string | null }>("/billing/cancel", { method: "POST" }),
@@ -98,10 +133,11 @@ export default function BillingSettingsPage() {
   async function handleUpgrade(planId: string) {
     if (planId === "enterprise") { setShowContact(true); return; }
     try {
-      const data = await apiFetch<{ hosted_url: string }>("/billing/checkout", {
+      const data = await apiFetch<{ hosted_url: string; checkout_id?: string }>("/billing/checkout", {
         method: "POST",
         body: JSON.stringify({ plan: planId, billing_period: "monthly" }),
       });
+      if (data.checkout_id) sessionStorage.setItem("bg_checkout_id", data.checkout_id);
       window.location.href = data.hosted_url;
     } catch (err) {
       toast({ title: "Checkout failed", description: String(err), variant: "destructive" });

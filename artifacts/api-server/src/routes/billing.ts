@@ -1,19 +1,29 @@
 /**
- * Billing routes — Coinbase Commerce USDC subscriptions.
+ * Billing routes — Coinbase Business Checkouts (USDC) subscriptions.
  *
  * Public (no auth):
- *   POST /billing/webhook   — Commerce webhook; verified by HMAC signature.
+ *   POST /billing/webhook   — Business webhook; verified by X-Hook0-Signature.
  *
  * Protected (requireAuth + attachSubscription):
  *   GET  /billing/status    — current plan, status, payment history.
- *   POST /billing/checkout  — create a Commerce charge and return hosted_url.
+ *   POST /billing/checkout  — create a Business checkout and return hosted_url.
+ *   POST /billing/confirm   — poll Get Checkout after redirect; activate if COMPLETED.
  *   POST /billing/cancel    — cancel active subscription.
  *   POST /billing/contact   — Enterprise contact form.
+ *
+ * Fulfillment is from checkout.payment.success (webhook) or a COMPLETED
+ * Get Checkout poll — never from the success redirect alone.
  */
 import { Router, type Request, type Response } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, subscriptionsTable, paymentsTable } from "@workspace/db";
-import { createCharge, verifyWebhookSignature, type CommerceWebhookEvent } from "../lib/coinbaseCommerce.js";
+import {
+  createCheckout,
+  getCheckout,
+  verifyWebhookSignature,
+  type CheckoutWebhookPayload,
+  type BusinessCheckout,
+} from "../lib/coinbaseBusiness.js";
 import { PLAN_PRICES, PERIOD_DAYS, SUPER_ADMIN_EMAIL } from "../lib/planLimits.js";
 import { logger } from "../lib/logger.js";
 
@@ -26,7 +36,7 @@ const router = Router();
  * Requires raw body — app.ts must enable the rawBody capture on express.json().
  */
 export async function webhookHandler(req: Request, res: Response): Promise<void> {
-  const signature = req.headers["x-cc-webhook-signature"] as string | undefined;
+  const signature = req.headers["x-hook0-signature"] as string | undefined;
   const rawBody = (req as Request & { rawBody?: string }).rawBody ?? "";
 
   if (!signature) {
@@ -36,7 +46,7 @@ export async function webhookHandler(req: Request, res: Response): Promise<void>
 
   let verified = false;
   try {
-    verified = verifyWebhookSignature(rawBody, signature);
+    verified = verifyWebhookSignature(rawBody, signature, req.headers);
   } catch (err) {
     logger.warn({ err }, "Webhook secret not configured");
     res.status(500).json({ error: "Webhook secret not configured" });
@@ -48,25 +58,36 @@ export async function webhookHandler(req: Request, res: Response): Promise<void>
     return;
   }
 
-  let event: CommerceWebhookEvent;
+  let event: CheckoutWebhookPayload;
   try {
-    event = JSON.parse(rawBody) as CommerceWebhookEvent;
+    event = JSON.parse(rawBody) as CheckoutWebhookPayload;
   } catch {
     res.status(400).json({ error: "Invalid JSON payload" });
     return;
   }
-  logger.info({ type: event.type, chargeId: event.data?.id }, "Commerce webhook received");
+  logger.info({ type: event.eventType, checkoutId: event.id, status: event.status }, "Business checkout webhook received");
 
-  if (event.type === "charge:confirmed") {
-    await handleChargeConfirmed(event.data.id, event.data.metadata);
+  if (event.eventType === "checkout.payment.success" || event.status === "COMPLETED") {
+    await handleCheckoutCompleted(event.id, event.metadata ?? {});
+  } else if (event.eventType === "checkout.payment.failed" || event.status === "FAILED") {
+    await markPaymentStatus(event.id, "failed");
+  } else if (event.eventType === "checkout.payment.expired" || event.status === "EXPIRED") {
+    await markPaymentStatus(event.id, "expired");
   }
 
-  // Always 200 — Commerce retries on non-2xx
+  // Always 200 — Coinbase retries on non-2xx
   res.status(200).json({ received: true });
 }
 
-async function handleChargeConfirmed(
-  chargeId: string,
+async function markPaymentStatus(checkoutId: string, status: "failed" | "expired"): Promise<void> {
+  await db
+    .update(paymentsTable)
+    .set({ status })
+    .where(eq(paymentsTable.coinbaseChargeId, checkoutId));
+}
+
+async function handleCheckoutCompleted(
+  checkoutId: string,
   metadata: Record<string, string>,
 ): Promise<void> {
   const userId = metadata.user_id;
@@ -74,29 +95,31 @@ async function handleChargeConfirmed(
   const billingPeriod = metadata.billing_period as "monthly" | "annual";
 
   if (!userId || !plan || !billingPeriod) {
-    logger.warn({ chargeId, metadata }, "Webhook missing required metadata — skipping");
+    logger.warn({ checkoutId, metadata }, "Webhook missing required metadata — skipping");
     return;
   }
 
-  // Find the pending payment record
   const [payment] = await db
     .select()
     .from(paymentsTable)
-    .where(eq(paymentsTable.coinbaseChargeId, chargeId))
+    .where(eq(paymentsTable.coinbaseChargeId, checkoutId))
     .limit(1);
 
   if (!payment) {
-    logger.warn({ chargeId }, "No payment record found for confirmed charge");
+    logger.warn({ checkoutId }, "No payment record found for completed checkout");
     return;
   }
 
-  // Mark payment confirmed
+  if (payment.status === "confirmed") {
+    logger.info({ checkoutId }, "Checkout already confirmed — idempotent skip");
+    return;
+  }
+
   await db
     .update(paymentsTable)
     .set({ status: "confirmed", confirmedAt: new Date() })
-    .where(eq(paymentsTable.coinbaseChargeId, chargeId));
+    .where(eq(paymentsTable.coinbaseChargeId, checkoutId));
 
-  // Advance subscription period
   const periodDays = PERIOD_DAYS[billingPeriod] ?? 30;
   const now = new Date();
   const periodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
@@ -114,7 +137,7 @@ async function handleChargeConfirmed(
         plan,
         billingPeriod,
         status: "active",
-        upgradePromptCount: 0, // Reset prompts on upgrade
+        upgradePromptCount: 0,
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
         updatedAt: now,
@@ -131,7 +154,6 @@ async function handleChargeConfirmed(
     });
   }
 
-  // Link payment → subscription
   const [sub] = await db
     .select()
     .from(subscriptionsTable)
@@ -142,10 +164,16 @@ async function handleChargeConfirmed(
     await db
       .update(paymentsTable)
       .set({ subscriptionId: sub.id })
-      .where(eq(paymentsTable.coinbaseChargeId, chargeId));
+      .where(eq(paymentsTable.coinbaseChargeId, checkoutId));
   }
 
   logger.info({ userId, plan, billingPeriod, periodEnd }, "Subscription activated");
+}
+
+async function fulfillIfCompleted(checkout: BusinessCheckout): Promise<boolean> {
+  if (checkout.status !== "COMPLETED") return false;
+  await handleCheckoutCompleted(checkout.id, checkout.metadata ?? {});
+  return true;
 }
 
 // ── Protected routes (mounted after requireAuth + attachSubscription) ─────────
@@ -202,11 +230,10 @@ router.post("/billing/checkout", async (req, res) => {
   const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
   const periodLabel = billing_period === "annual" ? "Annual" : "Monthly";
 
-  let charge;
+  let checkout: BusinessCheckout;
   try {
-    charge = await createCharge({
-      name: `BasisGuard ${planLabel} — ${periodLabel}`,
-      description: `BasisGuard ${planLabel} subscription (${periodLabel}, paid in USDC)`,
+    checkout = await createCheckout({
+      description: `BasisGuard ${planLabel} — ${periodLabel} (USDC via Coinbase Business)`,
       amountUsdc,
       metadata: {
         user_id: user.id,
@@ -216,16 +243,15 @@ router.post("/billing/checkout", async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error({ err }, "Failed to create Commerce charge");
+    logger.error({ err }, "Failed to create Coinbase Business checkout");
     res.status(502).json({ error: "Failed to create checkout session" });
     return;
   }
 
-  // Record pending payment
   await db.insert(paymentsTable).values({
     userId: user.id,
-    coinbaseChargeId: charge.id,
-    coinbaseChargeCode: charge.code,
+    coinbaseChargeId: checkout.id,
+    coinbaseChargeCode: checkout.url,
     plan,
     billingPeriod: billing_period,
     amountUsdc,
@@ -233,11 +259,56 @@ router.post("/billing/checkout", async (req, res) => {
   });
 
   res.json({
-    hosted_url: charge.hosted_url,
-    charge_id: charge.id,
-    charge_code: charge.code,
-    expires_at: charge.expires_at,
+    hosted_url: checkout.url,
+    checkout_id: checkout.id,
+    charge_id: checkout.id,
+    expires_at: checkout.expiresAt ?? null,
   });
+});
+
+/**
+ * POST /billing/confirm
+ * After Coinbase redirects back, poll Get Checkout. Activate only if COMPLETED.
+ */
+router.post("/billing/confirm", async (req, res) => {
+  const user = req.user!;
+  const { checkout_id } = req.body as { checkout_id?: string };
+
+  if (!checkout_id) {
+    res.status(400).json({ error: "checkout_id is required" });
+    return;
+  }
+
+  const [payment] = await db
+    .select()
+    .from(paymentsTable)
+    .where(eq(paymentsTable.coinbaseChargeId, checkout_id))
+    .limit(1);
+
+  if (!payment || payment.userId !== user.id) {
+    res.status(404).json({ error: "Checkout not found" });
+    return;
+  }
+
+  if (payment.status === "confirmed") {
+    res.json({ confirmed: true, status: "COMPLETED" });
+    return;
+  }
+
+  let checkout: BusinessCheckout;
+  try {
+    checkout = await getCheckout(checkout_id);
+  } catch (err) {
+    logger.error({ err, checkout_id }, "Failed to fetch Coinbase Business checkout");
+    res.status(502).json({ error: "Failed to confirm checkout" });
+    return;
+  }
+
+  const confirmed = await fulfillIfCompleted(checkout);
+  if (checkout.status === "FAILED") await markPaymentStatus(checkout_id, "failed");
+  if (checkout.status === "EXPIRED") await markPaymentStatus(checkout_id, "expired");
+
+  res.json({ confirmed, status: checkout.status });
 });
 
 /** POST /billing/cancel */
@@ -277,7 +348,6 @@ router.post("/billing/contact", async (req, res) => {
     return;
   }
 
-  // Log the inquiry — extend with email sending (e.g. Resend/SendGrid) when ready
   logger.info(
     { userId: user.id, email: user.email, company, team_size, message },
     "Enterprise contact inquiry received",

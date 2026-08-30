@@ -27,7 +27,7 @@ Crypto tax preparers face two problems that generic tools ignore:
 | **Firm** | $149 / mo · $1,299 / yr | Multi-client practices |
 | **Enterprise** | Custom | Large firms — [contact us](mailto:basisguard@ssdfinc.xyz) |
 
-Payments accepted in **USDC via Coinbase Commerce**. Annual plans billed upfront.
+Payments accepted in **USDC via Coinbase Business**. Annual plans billed upfront.
 
 ---
 
@@ -285,7 +285,7 @@ All four event types land in the review queue automatically (`bridge_transfer` i
 - **Database**: PostgreSQL 16 + Drizzle ORM (hosted on Neon)
 - **EVM decoding**: viem 2 (`decodeEventLog`, public client for receipt fetching)
 - **Price oracle**: CoinGecko (current prices via `/simple/price`; historical via `/coins/{id}/history`)
-- **Payments**: Coinbase Commerce (USDC)
+- **Payments**: Coinbase Business Checkouts (USDC)
 - **Hosting**: Render (API as Web Service, frontend as Static Site)
 - **Monorepo**: pnpm workspaces
 

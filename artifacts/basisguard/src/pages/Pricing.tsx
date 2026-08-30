@@ -119,7 +119,7 @@ export default function PricingPage() {
       return;
     }
 
-    // Create Commerce charge and redirect to hosted checkout
+    // Create a Coinbase Business checkout and redirect to the hosted payment URL
     try {
       const res = await authFetch(`${API}/api/billing/checkout`, {
         method: "POST",
@@ -127,7 +127,10 @@ export default function PricingPage() {
         body: JSON.stringify({ plan: planId, billing_period: annual ? "annual" : "monthly" }),
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { hosted_url: string };
+      const data = (await res.json()) as { hosted_url: string; checkout_id?: string };
+      if (data.checkout_id) {
+        sessionStorage.setItem("bg_checkout_id", data.checkout_id);
+      }
       window.location.href = data.hosted_url;
     } catch (err) {
       console.error("Checkout failed", err);
@@ -139,7 +142,7 @@ export default function PricingPage() {
       {/* Header */}
       <div className="text-center pt-20 pb-12 px-4">
         <Badge variant="outline" className="border-zinc-700 text-zinc-400 mb-4">
-          USDC · Powered by Coinbase Commerce
+          Pay with USDC via Coinbase Business
         </Badge>
         <h1 className="text-4xl md:text-5xl font-semibold tracking-tight mb-4">
           Simple, transparent pricing
@@ -244,7 +247,7 @@ export default function PricingPage() {
               {plan.id !== "free" && plan.id !== "enterprise" && (
                 <div className="pt-4 border-t border-zinc-800">
                   <p className="text-xs text-zinc-600 text-center">
-                    Pay with USDC on Base, Ethereum, or Polygon
+                    Pay with USDC — settles to SSDF Inc. on Coinbase Business
                   </p>
                 </div>
               )}
@@ -270,7 +273,7 @@ export default function PricingPage() {
           </p>
           <p>
             <span className="text-white font-medium">What network?</span>{" "}
-            Coinbase Commerce accepts USDC on Base, Ethereum, and Polygon — choose at checkout.
+            Coinbase Business Checkouts settle in USDC to SSDF Inc.'s Business account (typically on Base). No chargebacks.
           </p>
         </div>
       </div>

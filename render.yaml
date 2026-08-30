@@ -58,6 +58,15 @@ services:
         sync: false   # set in Render dashboard → Environment
       - key: CORS_ALLOWED_ORIGINS
         sync: false   # set to: https://basisguard-web.onrender.com (your frontend URL)
+      # Coinbase Business Checkouts (merchant rail — NOT customer import keys)
+      - key: COINBASE_BUSINESS_KEY_NAME
+        sync: false   # CDP key name: organizations/.../apiKeys/...
+      - key: COINBASE_BUSINESS_PRIVATE_KEY
+        sync: false   # CDP EC private key (PEM). Preserve newlines.
+      - key: COINBASE_BUSINESS_WEBHOOK_SECRET
+        sync: false   # Hook0 secret from the Business webhook subscription
+      - key: PUBLIC_APP_URL
+        sync: false   # https://basisguard.site — used for checkout success/fail redirects
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   # Note: static sites do not support a region field.
