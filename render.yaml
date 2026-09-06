@@ -67,6 +67,10 @@ services:
         sync: false   # Hook0 secret from the Business webhook subscription
       - key: PUBLIC_APP_URL
         sync: false   # https://basisguard.site — used for checkout success/fail redirects
+      - key: PUBLIC_API_URL
+        sync: false   # https://basisguard-api.onrender.com — webhook inbox origin
+      - key: DESK_KEY
+        sync: false   # optional; locks /desk/treasury when set (same idea as SSDF desk)
 
   # ── Frontend (Static Site) ──────────────────────────────────────────────────
   # Note: static sites do not support a region field.

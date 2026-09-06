@@ -33,10 +33,10 @@ import PricingPage from "./pages/Pricing";
 import BillingSettingsPage from "./pages/BillingSettings";
 import PrivacyPolicyPage from "./pages/PrivacyPolicy";
 import TermsOfServicePage from "./pages/TermsOfService";
+import TreasuryPage from "./pages/Treasury";
 import { BillingProvider } from "./context/BillingContext";
 import { UpgradeModal } from "./components/billing/UpgradeModal";
 import { LegalFooter } from "./components/legal/LegalFooter";
-import { ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
 // ── API base URL ─────────────────────────────────────────────────────────────
@@ -183,9 +183,13 @@ function SignUpPage() {
 function LandingPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[#0a0a0a] text-[#e6e6e6]">
-      <div className="flex flex-1 flex-col items-center justify-center gap-10 px-4">
+      <div className="flex flex-1 flex-col items-center justify-center gap-10 px-4 py-12">
+        <img
+          src={`${basePath}/hero-ledger.jpg`}
+          alt="Evidence log with a USDC settlement coin"
+          className="w-full max-w-lg rounded-lg border border-[#1f1f1f] object-cover"
+        />
         <div className="flex flex-col items-center gap-4 text-center">
-          <ShieldCheck className="h-14 w-14 text-[#e6e6e6]" strokeWidth={1.5} />
           <h1 className="font-serif text-5xl font-semibold tracking-widest uppercase">BasisGuard</h1>
           <p className="max-w-sm text-base leading-relaxed text-[#999999]">
             Crypto tax compliance evidence platform for licensed CPAs and authorized partners.
@@ -299,6 +303,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/pricing" component={PricingPage} />
               <Route path="/privacy" component={PrivacyPolicyPage} />
               <Route path="/terms" component={TermsOfServicePage} />
+              <Route path="/desk/treasury" component={TreasuryPage} />
               {/* REQUIRED — copy "/sign-in/*?" and "/sign-up/*?" verbatim.
                   The /*? optional wildcard matches both the bare URL and Clerk's
                   OAuth sub-paths (/sign-in/sso-callback, etc). */}
@@ -321,6 +326,7 @@ function PublicFallback() {
       <Switch>
         <Route path="/privacy" component={PrivacyPolicyPage} />
         <Route path="/terms" component={TermsOfServicePage} />
+        <Route path="/desk/treasury" component={TreasuryPage} />
         <Route path="/" component={LandingPage} />
         <Route component={LandingPage} />
       </Switch>
