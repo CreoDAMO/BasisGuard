@@ -1,24 +1,33 @@
 /**
- * Lot Inventory — FIFO matching algorithm (Rev. Proc. 2024-28).
+ * Lot Inventory write path — FIFO matching (Rev. Proc. 2024-28).
  *
- * Acquisition events create a lot; disposition events consume open lots
- * FIFO (oldest-first) within the same wallet + asset.  Partial disposals
- * leave the oldest lot in "partial" status with the remaining quantity.
+ * Pure math lives in lotInventory.ts so unit tests do not need a database.
+ * This module applies the plan inside a Drizzle transaction.
  *
- * Both functions accept a Drizzle transaction object so callers can wrap
- * the position insert + lot mutation in a single atomic DB transaction.
+ * The tax optimizer is a simulator. It does not call these write functions,
+ * and this module never reads optimizer rankings.
  */
 
-import { eq, and, asc, inArray } from "drizzle-orm";
-import { db, lotsTable, positionRecordsTable } from "@workspace/db";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type * as schema from "@workspace/db";
+import { eq, and, asc, inArray, isNull, lte } from "drizzle-orm";
+import { db, lotsTable, lotIdentificationsTable } from "@workspace/db";
+import { planLotConsumption } from "./lotInventory.js";
 
-// db.transaction() passes a subtype of NodePgDatabase that TypeScript resolves
-// from the compiled dist schema — use Parameters to derive the exact type.
+export {
+  remainingCostBasisUsd,
+  planLotConsumption,
+  ACQUISITION_EVENT_TYPES,
+  DISPOSITION_EVENT_TYPES,
+  DEFERRED_LOT_EVENT_TYPES,
+} from "./lotInventory.js";
+export type {
+  LotBasisSlice,
+  IdentificationSlice,
+  ConsumptionUpdate,
+  ConsumptionPlan,
+} from "./lotInventory.js";
+
 type Tx = Parameters<Parameters<typeof db["transaction"]>[0]>[0];
 
-/** Fields needed to auto-create a lot from an acquisition event. */
 export interface LotAcquisitionInput {
   walletId: string;
   assetSymbol: string;
@@ -31,25 +40,21 @@ export interface LotAcquisitionInput {
   acquisitionTxId?: string | null;
 }
 
-/** Fields needed to FIFO-match a disposition event against open lots. */
 export interface LotDisposalInput {
   walletId: string;
   assetSymbol: string;
   quantity: number;
-  proceedsUsd?: number | null;   // gross proceeds for the whole disposal
+  proceedsUsd?: number | null;
   disposalDate: Date;
 }
 
 export interface FifoResult {
   lotsMatched: number;
   totalRealizedGainLossUsd: number | null;
+  identifiedLotsConsumed: number;
+  lateIdentificationsIgnored: number;
 }
 
-/**
- * ACQUISITION — insert a new lot record linked to the given position.
- *
- * Called inside the same DB transaction as the position insert.
- */
 export async function autoCreateLot(
   tx: Tx,
   positionId: string,
@@ -81,116 +86,106 @@ export async function autoCreateLot(
 }
 
 /**
- * DISPOSITION — FIFO-match open lots and record realized gain/loss.
- *
- * Walks open lots for walletId + assetSymbol in acquisition-date order
- * (oldest first) and closes or partially closes each one until the
- * disposal quantity is consumed.
- *
- * Returns the number of lots touched and the total realized gain/loss USD
- * (null when no cost basis data is available).
- *
- * Called inside the same DB transaction as the position insert.
+ * Default: FIFO (oldest first) per wallet + asset.
+ * If a contemporaneous specific-identification record exists (identified_at
+ * ≤ disposal date, unconsumed), those lots are taken first.
  */
 export async function fifoMatchDisposition(
   tx: Tx,
   positionId: string,
   input: LotDisposalInput,
 ): Promise<FifoResult> {
-  if (input.quantity <= 0) return { lotsMatched: 0, totalRealizedGainLossUsd: null };
+  if (input.quantity <= 0) {
+    return { lotsMatched: 0, totalRealizedGainLossUsd: null, identifiedLotsConsumed: 0, lateIdentificationsIgnored: 0 };
+  }
 
-  // Fetch open lots for this wallet+asset, oldest first.
+  const symbol = input.assetSymbol.toUpperCase();
+
   const openLots = await tx
     .select()
     .from(lotsTable)
     .where(
       and(
         eq(lotsTable.walletId, input.walletId),
-        eq(lotsTable.assetSymbol, input.assetSymbol.toUpperCase()),
+        eq(lotsTable.assetSymbol, symbol),
         inArray(lotsTable.status, ["open", "partial"]),
       ),
     )
     .orderBy(asc(lotsTable.acquisitionDate));
 
-  let remainingQty = input.quantity;
-  let totalGainLoss: number | null = null;
-  let lotsMatched = 0;
+  const identRows = await tx
+    .select()
+    .from(lotIdentificationsTable)
+    .where(
+      and(
+        eq(lotIdentificationsTable.walletId, input.walletId),
+        eq(lotIdentificationsTable.assetSymbol, symbol),
+        isNull(lotIdentificationsTable.consumedAt),
+      ),
+    )
+    .orderBy(asc(lotIdentificationsTable.identifiedAt));
 
-  // proceedsPerUnit lets us allocate proceeds proportionally to each lot.
   const proceedsPerUnit =
     input.proceedsUsd != null && input.quantity > 0
       ? input.proceedsUsd / input.quantity
       : null;
 
-  for (const lot of openLots) {
-    if (remainingQty <= 0) break;
+  const plan = planLotConsumption(
+    openLots.map((lot) => ({
+      id: lot.id,
+      quantity: lot.quantity,
+      costBasisUsd: lot.costBasisUsd,
+      costBasisPerUnitUsd: lot.costBasisPerUnitUsd,
+    })),
+    input.quantity,
+    proceedsPerUnit,
+    identRows.map((row) => ({
+      id: row.id,
+      lotId: row.lotId,
+      quantity: row.quantity,
+      identifiedAt: row.identifiedAt,
+    })),
+    input.disposalDate,
+  );
 
-    const lotQty = lot.quantity;
-    const consumedQty = Math.min(lotQty, remainingQty);
-    remainingQty -= consumedQty;
-
-    // Proceeds allocated to this lot (proportional to consumed quantity).
-    const lotProceeds = proceedsPerUnit != null ? proceedsPerUnit * consumedQty : null;
-
-    // Cost basis allocated to this lot (proportional to consumed quantity).
-    const lotBasis =
-      lot.costBasisPerUnitUsd != null ? lot.costBasisPerUnitUsd * consumedQty : null;
-
-    const lotGainLoss =
-      lotProceeds != null && lotBasis != null ? lotProceeds - lotBasis : null;
-
-    if (lotGainLoss != null) {
-      totalGainLoss = (totalGainLoss ?? 0) + lotGainLoss;
-    }
-
-    const isFullyClosed = remainingQty >= 0 && consumedQty >= lotQty - 1e-10;
+  for (const update of plan.updates) {
+    const lot = openLots[update.index];
+    if (!lot) continue;
 
     await tx
       .update(lotsTable)
       .set({
-        status: isFullyClosed ? "closed" : "partial",
-        quantity: isFullyClosed ? lot.quantity : lotQty - consumedQty,
+        status: update.status,
+        quantity: update.remainingQuantity,
+        costBasisUsd: update.remainingCostBasisUsd,
         disposalPositionId: positionId,
         disposalDate: input.disposalDate,
-        disposalProceedsUsd: lotProceeds,
-        realizedGainLossUsd: lotGainLoss,
+        disposalProceedsUsd: update.lotProceeds,
+        realizedGainLossUsd: update.lotGainLoss,
       })
       .where(eq(lotsTable.id, lot.id));
 
-    lotsMatched++;
+    if (update.viaIdentification) {
+      await tx
+        .update(lotIdentificationsTable)
+        .set({
+          consumedAt: input.disposalDate,
+          disposalPositionId: positionId,
+        })
+        .where(
+          and(
+            eq(lotIdentificationsTable.lotId, lot.id),
+            isNull(lotIdentificationsTable.consumedAt),
+            lte(lotIdentificationsTable.identifiedAt, input.disposalDate),
+          ),
+        );
+    }
   }
 
-  return { lotsMatched, totalRealizedGainLossUsd: totalGainLoss };
+  return {
+    lotsMatched: plan.lotsMatched,
+    totalRealizedGainLossUsd: plan.totalGainLoss,
+    identifiedLotsConsumed: plan.identifiedLotsConsumed,
+    lateIdentificationsIgnored: plan.lateIdentificationsIgnored,
+  };
 }
-
-/**
- * Event-type classification helpers.
- *
- * These lists deliberately mirror the classifications used by the DeFi
- * adapters and the Coinbase/Kraken/Gemini mappers so the lot service
- * doesn't need separate configuration.
- */
-export const ACQUISITION_EVENT_TYPES = new Set([
-  "receive",
-  "buy",
-  "purchase",
-  "staking_reward",
-  "mining_reward",
-  "airdrop",
-  "fork_receipt",
-  "defi_lp_acquisition",
-  "defi_interest",
-  "defi_borrow",
-  "defi_collateral_deposit",
-]);
-
-export const DISPOSITION_EVENT_TYPES = new Set([
-  "send",
-  "sell",
-  "taxable_disposition",
-  "staking_withdrawal",
-  "defi_lp_disposition",
-  "defi_repay",
-  "defi_collateral_withdrawal",
-  "gift_out",
-]);

@@ -9,6 +9,13 @@
  */
 
 import { describe, it, expect } from "vitest";
+import {
+  remainingCostBasisUsd,
+  planLotConsumption,
+  ACQUISITION_EVENT_TYPES,
+  DISPOSITION_EVENT_TYPES,
+  DEFERRED_LOT_EVENT_TYPES,
+} from "../core/lotInventory.js";
 
 // ── Inline mirror of serializeLot (avoids importing the full route file) ──────
 
@@ -44,9 +51,11 @@ interface LotLike {
 function serializeLot(lot: LotLike, currentPriceUsd: number | null = null) {
   const isOpen = lot.status === "open" || lot.status === "partial";
   const days = holdingDays(lot.acquisitionDate, isOpen ? null : lot.disposalDate);
+  const remainingBasis =
+    lot.costBasisPerUnitUsd != null ? lot.costBasisPerUnitUsd * lot.quantity : lot.costBasisUsd;
   const unrealizedGainLossUsd =
-    isOpen && lot.costBasisPerUnitUsd != null && currentPriceUsd != null
-      ? (currentPriceUsd - lot.costBasisPerUnitUsd) * lot.quantity
+    isOpen && remainingBasis != null && currentPriceUsd != null
+      ? currentPriceUsd * lot.quantity - remainingBasis
       : null;
   return {
     id: lot.id,
@@ -56,7 +65,7 @@ function serializeLot(lot: LotLike, currentPriceUsd: number | null = null) {
     asset_identifier: lot.assetIdentifier ?? null,
     chain_id: lot.chainId ?? null,
     quantity: lot.quantity,
-    cost_basis_usd: lot.costBasisUsd ?? null,
+    cost_basis_usd: remainingBasis ?? null,
     cost_basis_per_unit_usd: lot.costBasisPerUnitUsd ?? null,
     acquisition_date: lot.acquisitionDate.toISOString(),
     acquisition_tx_id: lot.acquisitionTxId ?? null,
@@ -208,100 +217,139 @@ describe("serializeLot — unrealized_gain_loss_usd", () => {
   });
 });
 
+// ── Remaining-basis identity ──────────────────────────────────────────────────
+
+describe("remainingCostBasisUsd", () => {
+  it("uses per-unit × remaining qty, ignoring a stale original total", () => {
+    // Original acquisition: 2 ETH at $2,000/unit = $4,000. After selling 1, qty=1
+    // but a poisoned ledger still stores costBasisUsd=4000.
+    const remaining = remainingCostBasisUsd({
+      quantity: 1,
+      costBasisUsd: 4000,
+      costBasisPerUnitUsd: 2000,
+    });
+    expect(remaining).toBe(2000);
+  });
+
+  it("falls back to stored total only when per-unit is unknown", () => {
+    expect(remainingCostBasisUsd({ quantity: 1, costBasisUsd: 500, costBasisPerUnitUsd: null })).toBe(500);
+    expect(remainingCostBasisUsd({ quantity: 1, costBasisUsd: null, costBasisPerUnitUsd: null })).toBeNull();
+  });
+});
+
 // ── FIFO matching pure-logic tests ────────────────────────────────────────────
 
-describe("FIFO matching — pure logic", () => {
-  /**
-   * Mirrored FIFO allocation: given a list of open lots (oldest first) and a
-   * disposal quantity, returns how many lots are touched and the total G/L.
-   * This mirrors the core logic in fifoMatchDisposition without the DB layer.
-   */
-  function fifoAllocate(
-    lots: Array<{ quantity: number; costBasisPerUnitUsd: number | null }>,
-    disposalQty: number,
-    proceedsPerUnit: number | null,
-  ): { lotsMatched: number; totalGainLoss: number | null } {
-    let remaining = disposalQty;
-    let gainLoss: number | null = null;
-    let matched = 0;
-
-    for (const lot of lots) {
-      if (remaining <= 0) break;
-      const consumed = Math.min(lot.quantity, remaining);
-      remaining -= consumed;
-
-      const lotProceeds = proceedsPerUnit != null ? proceedsPerUnit * consumed : null;
-      const lotBasis =
-        lot.costBasisPerUnitUsd != null ? lot.costBasisPerUnitUsd * consumed : null;
-      const lotGL =
-        lotProceeds != null && lotBasis != null ? lotProceeds - lotBasis : null;
-
-      if (lotGL != null) gainLoss = (gainLoss ?? 0) + lotGL;
-      matched++;
-    }
-
-    return { lotsMatched: matched, totalGainLoss: gainLoss };
-  }
-
+describe("FIFO matching — planLotConsumption", () => {
   it("closes a single lot exactly", () => {
-    const lots = [{ quantity: 1, costBasisPerUnitUsd: 2000 }];
-    const result = fifoAllocate(lots, 1, 3000);
+    const lots = [{ id: "a", quantity: 1, costBasisUsd: 2000, costBasisPerUnitUsd: 2000 }];
+    const result = planLotConsumption(lots, 1, 3000);
     expect(result.lotsMatched).toBe(1);
     expect(result.totalGainLoss).toBeCloseTo(1000);
+    expect(result.updates[0].status).toBe("closed");
   });
 
   it("closes oldest lot first (FIFO)", () => {
     const lots = [
-      { quantity: 1, costBasisPerUnitUsd: 1000 }, // oldest — closes first
-      { quantity: 1, costBasisPerUnitUsd: 3000 }, // newer
+      { id: "old", quantity: 1, costBasisUsd: 1000, costBasisPerUnitUsd: 1000 },
+      { id: "new", quantity: 1, costBasisUsd: 3000, costBasisPerUnitUsd: 3000 },
     ];
-    const result = fifoAllocate(lots, 1, 2000);
+    const result = planLotConsumption(lots, 1, 2000);
     expect(result.lotsMatched).toBe(1);
-    expect(result.totalGainLoss).toBeCloseTo(1000); // uses oldest lot's basis
+    expect(result.updates[0].index).toBe(0);
+    expect(result.totalGainLoss).toBeCloseTo(1000);
   });
 
   it("spans multiple lots for large disposal", () => {
     const lots = [
-      { quantity: 1, costBasisPerUnitUsd: 1000 },
-      { quantity: 2, costBasisPerUnitUsd: 2000 },
+      { id: "a", quantity: 1, costBasisUsd: 1000, costBasisPerUnitUsd: 1000 },
+      { id: "b", quantity: 2, costBasisUsd: 4000, costBasisPerUnitUsd: 2000 },
     ];
-    const result = fifoAllocate(lots, 3, 3000); // 3 units at $3000/unit
+    const result = planLotConsumption(lots, 3, 3000);
     expect(result.lotsMatched).toBe(2);
-    // lot 1: (3000−1000)×1 = 2000; lot 2: (3000−2000)×2 = 2000; total = 4000
     expect(result.totalGainLoss).toBeCloseTo(4000);
   });
 
   it("records a loss when current price is below basis", () => {
-    const lots = [{ quantity: 1, costBasisPerUnitUsd: 5000 }];
-    const result = fifoAllocate(lots, 1, 3000);
+    const lots = [{ id: "a", quantity: 1, costBasisUsd: 5000, costBasisPerUnitUsd: 5000 }];
+    const result = planLotConsumption(lots, 1, 3000);
     expect(result.totalGainLoss).toBeCloseTo(-2000);
   });
 
   it("returns null G/L when no proceeds are provided", () => {
-    const lots = [{ quantity: 1, costBasisPerUnitUsd: 2000 }];
-    const result = fifoAllocate(lots, 1, null);
+    const lots = [{ id: "a", quantity: 1, costBasisUsd: 2000, costBasisPerUnitUsd: 2000 }];
+    const result = planLotConsumption(lots, 1, null);
     expect(result.lotsMatched).toBe(1);
     expect(result.totalGainLoss).toBeNull();
   });
 
   it("returns null G/L when cost basis is unknown", () => {
-    const lots = [{ quantity: 1, costBasisPerUnitUsd: null }];
-    const result = fifoAllocate(lots, 1, 3000);
+    const lots = [{ id: "a", quantity: 1, costBasisUsd: null, costBasisPerUnitUsd: null }];
+    const result = planLotConsumption(lots, 1, 3000);
     expect(result.lotsMatched).toBe(1);
     expect(result.totalGainLoss).toBeNull();
   });
 
   it("handles zero-lot list (nothing to close)", () => {
-    const result = fifoAllocate([], 1, 3000);
+    const result = planLotConsumption([], 1, 3000);
     expect(result.lotsMatched).toBe(0);
     expect(result.totalGainLoss).toBeNull();
   });
 
-  it("partial disposal leaves remainder in existing lot", () => {
-    const lots = [{ quantity: 5, costBasisPerUnitUsd: 1000 }];
-    const result = fifoAllocate(lots, 2, 1500);
+  it("partial disposal rewrites remaining total to per-unit × remaining qty", () => {
+    const lots = [{ id: "a", quantity: 5, costBasisUsd: 5000, costBasisPerUnitUsd: 1000 }];
+    const result = planLotConsumption(lots, 2, 1500);
     expect(result.lotsMatched).toBe(1);
     expect(result.totalGainLoss).toBeCloseTo(1000); // (1500−1000)×2
+    expect(result.updates[0].status).toBe("partial");
+    expect(result.updates[0].remainingQuantity).toBe(3);
+    expect(result.updates[0].remainingCostBasisUsd).toBe(3000);
+  });
+
+  it("a 50% sale cannot leave the original total sitting against remaining qty", () => {
+    const lots = [{ id: "eth", quantity: 2, costBasisUsd: 4000, costBasisPerUnitUsd: 2000 }];
+    const result = planLotConsumption(lots, 1, 2500);
+    const remaining = result.updates[0].remainingCostBasisUsd!;
+    const fakeLossIfStale = 2500 * 1 - 4000; // −1500, the poison
+    const honestUnrealized = 2500 * result.updates[0].remainingQuantity - remaining;
+    expect(remaining).toBe(2000);
+    expect(fakeLossIfStale).toBe(-1500);
+    expect(honestUnrealized).toBe(500);
+  });
+
+  it("consumes a contemporaneous Spec ID lot first, not the oldest FIFO lot", () => {
+    const lots = [
+      { id: "old", quantity: 1, costBasisUsd: 1000, costBasisPerUnitUsd: 1000 },
+      { id: "picked", quantity: 1, costBasisUsd: 3000, costBasisPerUnitUsd: 3000 },
+    ];
+    const sale = new Date("2026-06-01T12:00:00Z");
+    const result = planLotConsumption(
+      lots,
+      1,
+      4000,
+      [{ id: "id-1", lotId: "picked", quantity: 1, identifiedAt: new Date("2026-06-01T11:00:00Z") }],
+      sale,
+    );
+    expect(result.identifiedLotsConsumed).toBe(1);
+    expect(result.updates[0].viaIdentification).toBe(true);
+    expect(result.totalGainLoss).toBeCloseTo(1000); // 4000 − 3000, not 4000 − 1000
+  });
+
+  it("ignores an identification dated after the sale", () => {
+    const lots = [
+      { id: "old", quantity: 1, costBasisUsd: 1000, costBasisPerUnitUsd: 1000 },
+      { id: "picked", quantity: 1, costBasisUsd: 3000, costBasisPerUnitUsd: 3000 },
+    ];
+    const sale = new Date("2026-06-01T12:00:00Z");
+    const result = planLotConsumption(
+      lots,
+      1,
+      4000,
+      [{ id: "id-1", lotId: "picked", quantity: 1, identifiedAt: new Date("2026-06-01T13:00:00Z") }],
+      sale,
+    );
+    expect(result.lateIdentificationsIgnored).toBe(1);
+    expect(result.identifiedLotsConsumed).toBe(0);
+    expect(result.totalGainLoss).toBeCloseTo(3000); // FIFO oldest
   });
 
   it.todo("autoCreateLot inserts a row in lotsTable linked to the position (DB-layer)");
@@ -313,42 +361,41 @@ describe("FIFO matching — pure logic", () => {
 // ── Acquisition event type set ────────────────────────────────────────────────
 
 describe("ACQUISITION_EVENT_TYPES / DISPOSITION_EVENT_TYPES", () => {
-  /**
-   * These sets drive the lot-creation and FIFO-matching path.  Changes to them
-   * are silent and can silently break lot accounting — this test pins the
-   * expected membership so any accidental removal surfaces immediately.
-   */
-  const ACQUISITION_EVENT_TYPES = new Set([
-    "receive", "buy", "purchase", "staking_reward", "mining_reward",
-    "airdrop", "fork_receipt", "defi_lp_acquisition", "defi_interest",
-    "defi_borrow", "defi_collateral_deposit",
-  ]);
-
-  const DISPOSITION_EVENT_TYPES = new Set([
-    "send", "sell", "taxable_disposition", "staking_withdrawal",
-    "defi_lp_disposition", "defi_repay", "defi_collateral_withdrawal",
-    "gift_out",
-  ]);
-
   it("acquisition set contains expected event types", () => {
     expect(ACQUISITION_EVENT_TYPES.has("buy")).toBe(true);
     expect(ACQUISITION_EVENT_TYPES.has("receive")).toBe(true);
     expect(ACQUISITION_EVENT_TYPES.has("staking_reward")).toBe(true);
     expect(ACQUISITION_EVENT_TYPES.has("airdrop")).toBe(true);
     expect(ACQUISITION_EVENT_TYPES.has("defi_lp_acquisition")).toBe(true);
-    expect(ACQUISITION_EVENT_TYPES.size).toBe(11);
+    expect(ACQUISITION_EVENT_TYPES.size).toBe(10);
   });
 
   it("disposition set contains expected event types", () => {
     expect(DISPOSITION_EVENT_TYPES.has("sell")).toBe(true);
     expect(DISPOSITION_EVENT_TYPES.has("send")).toBe(true);
     expect(DISPOSITION_EVENT_TYPES.has("taxable_disposition")).toBe(true);
-    expect(DISPOSITION_EVENT_TYPES.has("gift_out")).toBe(true);
-    expect(DISPOSITION_EVENT_TYPES.size).toBe(8);
+    expect(DISPOSITION_EVENT_TYPES.size).toBe(7);
+  });
+
+  it("defi_borrow is not an acquisition — loan proceeds do not invent basis", () => {
+    expect(ACQUISITION_EVENT_TYPES.has("defi_borrow")).toBe(false);
+    expect(DEFERRED_LOT_EVENT_TYPES.defi_borrow).toMatch(/Loan proceeds/);
+  });
+
+  it("gift_out is not a §1001 FIFO disposal", () => {
+    expect(DISPOSITION_EVENT_TYPES.has("gift_out")).toBe(false);
+    expect(DEFERRED_LOT_EVENT_TYPES.gift_out).toMatch(/§1015/);
   });
 
   it("acquisition and disposition sets are disjoint", () => {
     for (const type of ACQUISITION_EVENT_TYPES) {
+      expect(DISPOSITION_EVENT_TYPES.has(type)).toBe(false);
+    }
+  });
+
+  it("deferred types are on neither inventory set", () => {
+    for (const type of Object.keys(DEFERRED_LOT_EVENT_TYPES)) {
+      expect(ACQUISITION_EVENT_TYPES.has(type)).toBe(false);
       expect(DISPOSITION_EVENT_TYPES.has(type)).toBe(false);
     }
   });

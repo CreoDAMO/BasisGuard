@@ -70,12 +70,13 @@ The Lot Inventory tracks every currently-held tax lot — one row per acquired p
 |-------|-------------|
 | **Wallet / asset** | Which wallet holds the lot and what asset it represents |
 | **Quantity** | Units held (or remaining after partial disposals) |
-| **Cost basis** | Total and per-unit USD cost at acquisition |
+| **Cost basis** | Remaining total and per-unit USD. After a partial, remaining total = per-unit × remaining qty — never the original acquisition total. |
 | **Acquisition date** | Determines short-term vs. long-term holding period |
 | **Status** | `open` (fully held), `partial` (partially disposed), `closed` (fully disposed) |
 | **Realized gain/loss** | Populated on disposal; links back to the disposing position record |
+| **Specific identification** | Dated books-and-records entry (`identified_at` ≤ sale). FIFO is the default. Ranked HIFO/LIFO/min-tax is a simulator, not an election. |
 
-Lots complement the Evidence Log: Position Records capture *what happened* (classified transactions), while the Lot Inventory captures *what is currently held* (basis and holding period ready for disposal matching). Accurate lot inventory is a prerequisite for specific-identification basis elections under Rev. Proc. 2024-28.
+Lots complement the Evidence Log: Position Records capture *what happened* (classified transactions), while the Lot Inventory captures *what is currently held* (basis and holding period ready for disposal matching). Accurate lot inventory is a prerequisite for specific-identification basis elections under Rev. Proc. 2024-28. `defi_borrow` and gifts are kept off the FIFO acquisition/disposal sets until they have their own Code path.
 
 ### Treatment Profiles
 
@@ -286,7 +287,7 @@ All four event types land in the review queue automatically (`bridge_transfer` i
 - **EVM decoding**: viem 2 (`decodeEventLog`, public client for receipt fetching)
 - **Price oracle**: CoinGecko (current prices via `/simple/price`; historical via `/coins/{id}/history`)
 - **Payments**: Coinbase Business Checkouts (USDC)
-- **Hosting**: Render (API as Web Service, frontend as Static Site)
+- **Hosting**: Render (API as Web Service, frontend as Static Site). `GET /api/health` and `GET /api/healthz` return JSON `{"status":"ok"}`. The custom domain must proxy `/api/*` to the API — a static rewrite that sends `/api/health` to `index.html` is a host pin, not an API bug.
 - **Monorepo**: pnpm workspaces
 
 For developer setup, architecture details, and all API routes, see [`replit.md`](./replit.md).

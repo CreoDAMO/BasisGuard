@@ -4,17 +4,28 @@
  * All functions are pure (no DB calls) so they can be tested in isolation.
  * The route layer fetches lots + prices and feeds them in.
  *
- * Lot-selection strategies:
- *  - fifo     : First In, First Out (IRS default for most taxpayers)
+ * THIS MODULE DOES NOT WRITE THE LEDGER.
+ * Ranked FIFO / LIFO / HIFO / min-tax columns are a simulator. Under
+ * Treas. Reg. §1.1012-1(j) / Rev. Proc. 2024-28 the method that files is
+ * the method identified when the lot moved (FIFO default, or a dated
+ * specific-identification record at or before the sale). Looking at HIFO
+ * here and then selling on Coinbase still consumes FIFO.
+ *
+ * Lot-selection strategies (simulator only):
+ *  - fifo     : First In, First Out (IRS default)
  *  - lifo     : Last In, First Out
- *  - hifo     : Highest Cost First (maximises basis consumed → minimises gain)
- *  - min_tax  : Minimise short-term gains: sell long-term lots first (HIFO
- *               within long-term), then short-term (HIFO within short-term)
+ *  - hifo     : Highest known cost first. Unknown-basis lots sort LAST —
+ *               missing basis is not $0 (that would maximize gain, the
+ *               opposite of HIFO).
+ *  - min_tax  : Long-term lots first (HIFO within), then short-term
  */
 
 export const LONG_TERM_DAYS = 365;
 export const STRATEGIES = ["fifo", "lifo", "hifo", "min_tax"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
+
+export const SIMULATOR_DISCLAIMER =
+  "Calculated is never filed. This ranking is a simulator — it does not write the lot ledger and is not a specific-identification election. Treas. Reg. §1.1012-1(j) / Rev. Proc. 2024-28: FIFO is the default unless a contemporaneous identification of the lot is on the books at or before the sale (Notice 2025-7 / 2026-20 is books-and-records, not a ranked table after year-end).";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -29,6 +40,24 @@ export interface LotInput {
   status: "open" | "partial" | "closed";
 }
 
+/** Remaining total basis for currently held qty. Never trust a stale original total. */
+export function remainingCostBasisUsd(lot: Pick<LotInput, "quantity" | "costBasisUsd" | "costBasisPerUnitUsd">): number | null {
+  if (lot.costBasisPerUnitUsd != null) return lot.costBasisPerUnitUsd * lot.quantity;
+  return lot.costBasisUsd;
+}
+
+function hasKnownBasis(lot: LotInput): boolean {
+  return lot.costBasisPerUnitUsd != null;
+}
+
+function hifoCompare(a: LotInput, b: LotInput): number {
+  const aKnown = hasKnownBasis(a);
+  const bKnown = hasKnownBasis(b);
+  if (aKnown !== bKnown) return aKnown ? -1 : 1; // unknown sorts last
+  if (!aKnown) return 0;
+  return (b.costBasisPerUnitUsd as number) - (a.costBasisPerUnitUsd as number);
+}
+
 // ── simulateSale ─────────────────────────────────────────────────────────────
 
 export interface ConsumedLot {
@@ -39,6 +68,7 @@ export interface ConsumedLot {
   gainLossUsd: number | null;
   holdingDays: number;
   holdingPeriod: "short_term" | "long_term";
+  basisKnown: boolean;
 }
 
 export interface SimulationResult {
@@ -55,6 +85,7 @@ export interface SimulationResult {
   longTermGainUsd: number | null;
   totalGainUsd: number | null;
   warning: string | null;
+  unknownBasisLotsSkipped: number;
 }
 
 function holdingDays(acquisitionDate: Date, now: Date): number {
@@ -69,18 +100,22 @@ function sortLots(lots: LotInput[], strategy: Strategy, now: Date): LotInput[] {
     case "lifo":
       return copy.sort((a, b) => b.acquisitionDate.getTime() - a.acquisitionDate.getTime());
     case "hifo":
-      return copy.sort((a, b) => (b.costBasisPerUnitUsd ?? 0) - (a.costBasisPerUnitUsd ?? 0));
+      return copy.sort(hifoCompare);
     case "min_tax": {
-      // Long-term lots first (HIFO within), then short-term (HIFO within)
       const isLong = (l: LotInput) => holdingDays(l.acquisitionDate, now) > LONG_TERM_DAYS;
       return copy.sort((a, b) => {
         const aLong = isLong(a) ? 0 : 1;
         const bLong = isLong(b) ? 0 : 1;
         if (aLong !== bLong) return aLong - bLong;
-        return (b.costBasisPerUnitUsd ?? 0) - (a.costBasisPerUnitUsd ?? 0);
+        return hifoCompare(a, b);
       });
     }
   }
+}
+
+function joinWarnings(parts: Array<string | null | undefined>): string | null {
+  const cleaned = parts.filter((p): p is string => Boolean(p && p.trim()));
+  return cleaned.length ? cleaned.join(" ") : null;
 }
 
 export function simulateSale(
@@ -94,6 +129,7 @@ export function simulateSale(
   const openLots = lots.filter((l) => l.status === "open" || l.status === "partial");
   const totalAvailable = openLots.reduce((s, l) => s + l.quantity, 0);
   const quantityFillable = Math.min(quantityToSell, totalAvailable);
+  const unknownOpen = openLots.filter((l) => !hasKnownBasis(l)).length;
 
   const sorted = sortLots(openLots, strategy, now);
   const consumed: ConsumedLot[] = [];
@@ -114,6 +150,7 @@ export function simulateSale(
       gainLossUsd: basisUsd != null ? proceedsUsd - basisUsd : null,
       holdingDays: days,
       holdingPeriod: period,
+      basisKnown: lot.costBasisPerUnitUsd != null,
     });
     remaining -= take;
   }
@@ -142,6 +179,12 @@ export function simulateSale(
       ? (shortTermGainUsd ?? 0) + (longTermGainUsd ?? 0)
       : null;
 
+  const unknownConsumed = consumed.filter((c) => !c.basisKnown).length;
+  const hifoNote =
+    (strategy === "hifo" || strategy === "min_tax") && unknownOpen > 0
+      ? `Unknown-basis lots (${unknownOpen}) sort last under ${strategy === "hifo" ? "HIFO" : "min-tax"} — missing basis is not $0.`
+      : null;
+
   return {
     assetSymbol,
     quantityRequested: quantityToSell,
@@ -155,10 +198,13 @@ export function simulateSale(
     shortTermGainUsd,
     longTermGainUsd,
     totalGainUsd,
-    warning:
+    unknownBasisLotsSkipped: unknownConsumed,
+    warning: joinWarnings([
       quantityFillable < quantityToSell
         ? `Only ${quantityFillable.toFixed(8)} of ${quantityToSell.toFixed(8)} ${assetSymbol} is available in open lots`
         : null,
+      hifoNote,
+    ]),
   };
 }
 
@@ -174,7 +220,7 @@ export interface StrategyComparison {
 
 /**
  * Run simulateSale under all four strategies and return a ranked comparison
- * (lowest total gain first).
+ * (lowest total gain first). Ranking is illustrative — it is not an election.
  */
 export function compareStrategies(
   lots: LotInput[],
@@ -222,9 +268,7 @@ export interface HarvestRecommendation {
 
 /**
  * Find open lots with unrealized losses ranked by largest loss first.
- * `allLots` should be ALL open/partial lots for the wallet (used to compute
- * wash-sale risk across assets).
- * `prices` is a symbol → current USD price map.
+ * Uses remaining basis (per-unit × remaining qty), never a stale original total.
  */
 export function harvestRecommendations(
   allLots: LotInput[],
@@ -234,7 +278,6 @@ export function harvestRecommendations(
 ): HarvestRecommendation[] {
   const openLots = allLots.filter((l) => l.status === "open" || l.status === "partial");
 
-  // Build a map: assetSymbol → sorted acquisition dates (for wash-sale window)
   const acquisitionsBySymbol = new Map<string, Date[]>();
   for (const l of openLots) {
     const dates = acquisitionsBySymbol.get(l.assetSymbol) ?? [];
@@ -249,16 +292,16 @@ export function harvestRecommendations(
     if (price == null) continue;
 
     const currentValueUsd = price * lot.quantity;
+    const remainingBasis = remainingCostBasisUsd(lot);
     const gainLossUsd =
-      lot.costBasisUsd != null ? currentValueUsd - lot.costBasisUsd : null;
+      remainingBasis != null ? currentValueUsd - remainingBasis : null;
 
-    if (gainLossUsd == null || gainLossUsd >= 0) continue; // only losses
+    if (gainLossUsd == null || gainLossUsd >= 0) continue;
     const lossUsd = Math.abs(gainLossUsd);
     if (lossUsd < minLossUsd) continue;
 
     const days = holdingDays(lot.acquisitionDate, now);
 
-    // Wash-sale risk: any OTHER lot of the same symbol acquired within ±30 days
     const WASH_DAYS = 30;
     const siblings = acquisitionsBySymbol.get(lot.assetSymbol) ?? [];
     const washSaleRisk = siblings.some((d) => {
@@ -271,7 +314,7 @@ export function harvestRecommendations(
       walletId: lot.walletId,
       assetSymbol: lot.assetSymbol,
       quantity: lot.quantity,
-      costBasisUsd: lot.costBasisUsd,
+      costBasisUsd: remainingBasis,
       costBasisPerUnitUsd: lot.costBasisPerUnitUsd,
       currentPriceUsd: price,
       currentValueUsd,
@@ -283,7 +326,6 @@ export function harvestRecommendations(
     });
   }
 
-  // Rank: largest loss first
   return results.sort((a, b) => b.unrealizedLossUsd - a.unrealizedLossUsd);
 }
 
@@ -313,8 +355,8 @@ export interface EstateStepUpResult {
 
 /**
  * Compute IRC §1014 step-up in basis for inherited lots.
- * `prices` is a symbol → FMV at date-of-death map (fetched by the caller
- * from the price oracle using historical data).
+ * Uses remaining basis (per-unit × remaining qty) so a partial disposal cannot
+ * invent a loss against the original acquisition total.
  */
 export function estateStepUp(
   lots: LotInput[],
@@ -333,16 +375,17 @@ export function estateStepUp(
   let totalGainEliminatedUsd: number | null = null;
 
   const stepUpLots: StepUpLot[] = openLots.map((lot) => {
+    const remainingBasis = remainingCostBasisUsd(lot);
     const stepUpPrice = prices[lot.assetSymbol] ?? null;
     const steppedUpPerUnit = stepUpPrice;
     const steppedUpTotal = steppedUpPerUnit != null ? steppedUpPerUnit * lot.quantity : null;
     const gainEliminated =
-      steppedUpTotal != null && lot.costBasisUsd != null
-        ? steppedUpTotal - lot.costBasisUsd
+      steppedUpTotal != null && remainingBasis != null
+        ? steppedUpTotal - remainingBasis
         : null;
 
-    if (lot.costBasisUsd != null) {
-      totalOriginalBasisUsd = (totalOriginalBasisUsd ?? 0) + lot.costBasisUsd;
+    if (remainingBasis != null) {
+      totalOriginalBasisUsd = (totalOriginalBasisUsd ?? 0) + remainingBasis;
     }
     if (steppedUpTotal != null) {
       totalSteppedUpBasisUsd = (totalSteppedUpBasisUsd ?? 0) + steppedUpTotal;
@@ -355,7 +398,7 @@ export function estateStepUp(
       lotId: lot.id,
       assetSymbol: lot.assetSymbol,
       quantity: lot.quantity,
-      originalCostBasisUsd: lot.costBasisUsd,
+      originalCostBasisUsd: remainingBasis,
       originalCostBasisPerUnitUsd: lot.costBasisPerUnitUsd,
       stepUpPriceUsd: stepUpPrice,
       steppedUpCostBasisUsd: steppedUpTotal,

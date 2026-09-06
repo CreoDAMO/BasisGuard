@@ -48,10 +48,10 @@ function gainClass(v: number | null | undefined): string {
 // ── Strategy labels ───────────────────────────────────────────────────────────
 
 const STRATEGY_META: Record<string, { label: string; description: string }> = {
-  fifo: { label: "FIFO", description: "First In, First Out — IRS default" },
-  lifo: { label: "LIFO", description: "Last In, First Out" },
-  hifo: { label: "HIFO", description: "Highest Cost First — minimises gain" },
-  min_tax: { label: "Min Tax", description: "Long-term lots first, then HIFO" },
+  fifo: { label: "FIFO", description: "First In, First Out — the method that files by default" },
+  lifo: { label: "LIFO", description: "Simulator only — not a standing order" },
+  hifo: { label: "HIFO", description: "Simulator only — unknown basis sorts last, never $0" },
+  min_tax: { label: "Min Tax", description: "Simulator only — not an identification" },
 };
 
 const STRATEGY_ORDER = ["fifo", "lifo", "hifo", "min_tax"];
@@ -148,8 +148,9 @@ function SimulateTab() {
         <CardHeader className="border-b border-border/50 bg-muted/10 pb-5">
           <CardTitle className="font-serif text-xl">What-If Sale Simulator</CardTitle>
           <CardDescription className="font-serif">
-            Choose an asset and quantity to sell. BasisGuard runs all four lot-selection strategies and ranks them
-            by total tax impact, so you can pick the most advantageous method before executing.
+            Calculated is never filed. Ranked LIFO / HIFO / min-tax columns are a simulator — they do not write
+            the ledger and are not a specific-identification election. FIFO is the method that files unless a
+            dated identification is on the books at or before the sale.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">

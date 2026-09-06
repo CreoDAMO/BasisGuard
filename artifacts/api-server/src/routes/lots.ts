@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, count } from "drizzle-orm";
-import { db, lotsTable } from "@workspace/db";
+import { eq, and, desc, count, isNull } from "drizzle-orm";
+import { db, lotsTable, lotIdentificationsTable } from "@workspace/db";
 import { requireRole, ADMIN_ROLES } from "../middlewares/auth.js";
 import { getBatchPrices } from "../core/priceOracle.js";
+import { remainingCostBasisUsd } from "../core/lotMatching.js";
 import { z } from "zod";
 
 // ── Validation schemas (strict — tighter than generated OpenAPI schemas) ─────
@@ -65,10 +66,11 @@ function serializeLot(
   const isOpen = lot.status === "open" || lot.status === "partial";
   const days = holdingDays(lot.acquisitionDate, isOpen ? null : lot.disposalDate);
 
-  // Unrealized G/L: (current price − cost basis per unit) × quantity
+  // Unrealized G/L against remaining basis (per-unit × remaining qty).
+  const remainingBasis = remainingCostBasisUsd(lot);
   const unrealizedGainLossUsd =
-    isOpen && lot.costBasisPerUnitUsd != null && currentPriceUsd != null
-      ? (currentPriceUsd - lot.costBasisPerUnitUsd) * lot.quantity
+    isOpen && remainingBasis != null && currentPriceUsd != null
+      ? currentPriceUsd * lot.quantity - remainingBasis
       : null;
 
   return {
@@ -79,7 +81,7 @@ function serializeLot(
     asset_identifier: lot.assetIdentifier ?? null,
     chain_id: lot.chainId ?? null,
     quantity: lot.quantity,
-    cost_basis_usd: lot.costBasisUsd ?? null,
+    cost_basis_usd: remainingBasis,
     cost_basis_per_unit_usd: lot.costBasisPerUnitUsd ?? null,
     acquisition_date: lot.acquisitionDate.toISOString(),
     acquisition_tx_id: lot.acquisitionTxId ?? null,
@@ -135,13 +137,17 @@ router.get("/lots/summary", async (req, res): Promise<void> => {
   for (const lot of open) {
     const days = Math.floor((now - lot.acquisitionDate.getTime()) / MS_PER_DAY);
     if (days > LONG_TERM_DAYS) longTermCount++; else shortTermCount++;
-    if (lot.costBasisUsd != null) totalBasis = (totalBasis ?? 0) + lot.costBasisUsd;
+    if (lot.costBasisPerUnitUsd != null || lot.costBasisUsd != null) {
+      const remaining = remainingCostBasisUsd(lot);
+      if (remaining != null) totalBasis = (totalBasis ?? 0) + remaining;
+    }
 
     const priceUsd = prices[lot.assetSymbol] ?? null;
     const currentValue = priceUsd != null ? priceUsd * lot.quantity : null;
+    const remaining = remainingCostBasisUsd(lot);
     const lotGainLoss =
-      currentValue != null && lot.costBasisUsd != null
-        ? currentValue - lot.costBasisUsd
+      currentValue != null && remaining != null
+        ? currentValue - remaining
         : null;
     if (lotGainLoss != null) totalUnrealized = (totalUnrealized ?? 0) + lotGainLoss;
 
@@ -161,7 +167,7 @@ router.get("/lots/summary", async (req, res): Promise<void> => {
     }
     entry.open_lot_count++;
     entry.total_quantity += lot.quantity;
-    if (lot.costBasisUsd != null) entry.total_cost_basis_usd = (entry.total_cost_basis_usd ?? 0) + lot.costBasisUsd;
+    if (remaining != null) entry.total_cost_basis_usd = (entry.total_cost_basis_usd ?? 0) + remaining;
     if (currentValue != null) entry.current_value_usd = (entry.current_value_usd ?? 0) + currentValue;
     if (lotGainLoss != null) entry.unrealized_gain_loss_usd = (entry.unrealized_gain_loss_usd ?? 0) + lotGainLoss;
     if (days > LONG_TERM_DAYS) entry.long_term_lots++; else entry.short_term_lots++;
@@ -246,6 +252,137 @@ router.post("/lots", async (req, res): Promise<void> => {
   res.status(201).json(serializeLot(lot));
 });
 
+function serializeIdentification(row: typeof lotIdentificationsTable.$inferSelect) {
+  return {
+    id: row.id,
+    lot_id: row.lotId,
+    wallet_id: row.walletId,
+    asset_symbol: row.assetSymbol,
+    quantity: row.quantity,
+    method: row.method,
+    identified_at: row.identifiedAt.toISOString(),
+    identified_by: row.identifiedBy,
+    disposal_position_id: row.disposalPositionId,
+    consumed_at: row.consumedAt?.toISOString() ?? null,
+    notes: row.notes,
+    created_at: row.createdAt.toISOString(),
+    survives_exam: row.consumedAt == null || (row.consumedAt.getTime() >= row.identifiedAt.getTime()),
+  };
+}
+
+const IdentifyBody = z.object({
+  quantity: z.number().positive().optional(),
+  identified_at: z.string().datetime().optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+// GET /lots/identifications — standing + consumed ID records (must precede /lots/:id)
+router.get("/lots/identifications", async (req, res): Promise<void> => {
+  const wallet_id = typeof req.query.wallet_id === "string" ? req.query.wallet_id : undefined;
+  const where = wallet_id ? eq(lotIdentificationsTable.walletId, wallet_id) : undefined;
+  const rows = await db
+    .select()
+    .from(lotIdentificationsTable)
+    .where(where)
+    .orderBy(desc(lotIdentificationsTable.identifiedAt))
+    .limit(200);
+  res.json({
+    items: rows.map(serializeIdentification),
+    disclaimer:
+      "Specific identification is only the method that files if the lot was identified no later than the sale. This log is books-and-records (Notice 2025-7 / 2026-20). Ranked HIFO/LIFO/min-tax simulator output is not an identification.",
+  });
+});
+
+// POST /lots/:id/identify — contemporaneous Spec ID. Does not close the lot.
+// The optimizer never writes this table.
+router.post("/lots/:id/identify", async (req, res): Promise<void> => {
+  const parsed = IdentifyBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const lotId = String(req.params.id);
+  const rows = await db.select().from(lotsTable).where(eq(lotsTable.id, lotId)).limit(1);
+  if (rows.length === 0) {
+    res.status(404).json({ error: "Lot not found" });
+    return;
+  }
+  const lot = rows[0];
+  if (lot.status === "closed") {
+    res.status(409).json({ error: "Cannot identify a closed lot. Identification must be contemporaneous with (or before) the sale." });
+    return;
+  }
+
+  const identifiedAt = parsed.data.identified_at ? new Date(parsed.data.identified_at) : new Date();
+  if (identifiedAt.getTime() > Date.now() + 1000) {
+    res.status(400).json({ error: "identified_at cannot be in the future." });
+    return;
+  }
+
+  const standing = await db
+    .select({ id: lotIdentificationsTable.id })
+    .from(lotIdentificationsTable)
+    .where(and(eq(lotIdentificationsTable.lotId, lotId), isNull(lotIdentificationsTable.consumedAt)))
+    .limit(1);
+  if (standing.length > 0) {
+    res.status(409).json({
+      error: "This lot already has an unconsumed identification. Cancel it before recording another.",
+      identification_id: standing[0].id,
+    });
+    return;
+  }
+
+  const qty = parsed.data.quantity ?? lot.quantity;
+  if (qty > lot.quantity + 1e-10) {
+    res.status(400).json({ error: "Identified quantity cannot exceed remaining lot quantity." });
+    return;
+  }
+
+  const [record] = await db
+    .insert(lotIdentificationsTable)
+    .values({
+      lotId: lot.id,
+      walletId: lot.walletId,
+      assetSymbol: lot.assetSymbol,
+      quantity: qty,
+      method: "specific_identification",
+      identifiedAt,
+      identifiedBy: req.user?.id ?? null,
+      notes: parsed.data.notes ?? null,
+    })
+    .returning();
+
+  res.status(201).json({
+    identification: serializeIdentification(record),
+    disclaimer:
+      "Recorded. This is not a standing HIFO/LIFO order. The next disposal of this wallet+asset will consume this lot first only if identified_at is on or before the sale date. FIFO remains the default for unidentified lots.",
+  });
+});
+
+router.get("/lots/:id/identifications", async (req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(lotIdentificationsTable)
+    .where(eq(lotIdentificationsTable.lotId, req.params.id))
+    .orderBy(desc(lotIdentificationsTable.identifiedAt));
+  res.json({ items: rows.map(serializeIdentification) });
+});
+
+router.delete("/lots/identifications/:id", async (req, res): Promise<void> => {
+  const id = String(req.params.id);
+  const rows = await db.select().from(lotIdentificationsTable).where(eq(lotIdentificationsTable.id, id)).limit(1);
+  if (rows.length === 0) {
+    res.status(404).json({ error: "Identification not found" });
+    return;
+  }
+  if (rows[0].consumedAt) {
+    res.status(409).json({ error: "Consumed identifications are books-and-records and cannot be deleted." });
+    return;
+  }
+  await db.delete(lotIdentificationsTable).where(eq(lotIdentificationsTable.id, id));
+  res.status(204).end();
+});
+
 // GET /lots/:id
 router.get("/lots/:id", async (req, res): Promise<void> => {
   const rows = await db.select().from(lotsTable).where(eq(lotsTable.id, req.params.id)).limit(1);
@@ -279,7 +416,12 @@ router.patch("/lots/:id", requireRole(ADMIN_ROLES), async (req, res): Promise<vo
   // Build update object only from provided keys
   const updates: Partial<typeof lotsTable.$inferInsert> = {};
   if (d.status !== undefined) updates.status = d.status;
-  if (d.quantity !== undefined) updates.quantity = d.quantity;
+  if (d.quantity !== undefined) {
+    updates.quantity = d.quantity;
+    if (existing[0].costBasisPerUnitUsd != null) {
+      updates.costBasisUsd = existing[0].costBasisPerUnitUsd * d.quantity;
+    }
+  }
   if (d.cost_basis_usd !== undefined) updates.costBasisUsd = d.cost_basis_usd;
   if (d.disposal_position_id !== undefined) updates.disposalPositionId = d.disposal_position_id;
   if (d.disposal_date !== undefined) updates.disposalDate = d.disposal_date ? new Date(d.disposal_date) : null;
