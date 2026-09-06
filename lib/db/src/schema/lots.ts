@@ -27,9 +27,14 @@ export const lotsTable = pgTable("lots", {
   assetIdentifier: text("asset_identifier"),
   chainId: uuid("chain_id").references(() => chainsTable.id),
 
-  /** Number of units acquired. */
+  /** Number of units currently held (remaining after partials; closed slice on full close). */
   quantity: doublePrecision("quantity").notNull(),
-  /** Total cost basis in USD at acquisition (quantity × per-unit price). */
+  /**
+   * Remaining total cost basis in USD for `quantity`.
+   * Identity: when per-unit is known, cost_basis_usd === cost_basis_per_unit_usd × quantity.
+   * Partial disposals rewrite this total — never leave the original acquisition total
+   * sitting against a reduced quantity (that poisons harvest and §1014).
+   */
   costBasisUsd: doublePrecision("cost_basis_usd"),
   /** Cost basis per unit in USD at acquisition. */
   costBasisPerUnitUsd: doublePrecision("cost_basis_per_unit_usd"),

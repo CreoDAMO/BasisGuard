@@ -20,7 +20,7 @@ export const globalLimiter = rateLimit({
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many requests — please slow down and try again in a minute." },
-  skip: (req) => req.path === "/healthz", // Health checks must never be rate-limited
+  skip: (req) => /\/healthz?$/.test(req.path),
 });
 
 /**

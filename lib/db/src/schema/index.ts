@@ -8,6 +8,7 @@ export * from "./submissions";
 export * from "./users";
 export * from "./raw_transactions";
 export * from "./lots";
+export * from "./lot_identifications";
 export * from "./coinbase_connections";
 export * from "./notifications";
 export * from "./exchange_connections";

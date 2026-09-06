@@ -101,6 +101,22 @@ describe("simulateSale", () => {
     expect(result.totalProceedsUsd).toBe(3000);
   });
 
+  it("HIFO does not treat unknown basis as $0 — unknown lots sort last", () => {
+    const unknown = lot("unk", "BTC", 1, null, new Date("2025-01-01T00:00:00Z"));
+    const knownHigh = lot("hi", "BTC", 1, 50_000, new Date("2026-01-01T00:00:00Z"));
+    const result = simulateSale([unknown, knownHigh], 1, BTC_PRICE, "hifo", NOW);
+    expect(result.lotsConsumed[0].lotId).toBe("hi");
+    expect(result.lotsConsumed[0].basisKnown).toBe(true);
+    expect(result.warning).toMatch(/Unknown-basis/);
+  });
+
+  it("HIFO with only unknown-basis lots still fills but reports no gain", () => {
+    const unknown = lot("unk", "BTC", 1, null, new Date("2025-01-01T00:00:00Z"));
+    const result = simulateSale([unknown], 1, BTC_PRICE, "hifo", NOW);
+    expect(result.lotsConsumed[0].lotId).toBe("unk");
+    expect(result.totalGainUsd).toBeNull();
+  });
+
   it("closed lots are excluded", () => {
     const closedLot = lot("cl", "BTC", 1, 30_000, new Date("2025-01-01T00:00:00Z"), "closed");
     const result = simulateSale([closedLot, ST_LOT], 0.5, BTC_PRICE, "fifo", NOW);
@@ -174,6 +190,17 @@ describe("harvestRecommendations", () => {
     expect(lossRec.washSaleRisk).toBe(false);
   });
 
+  it("uses remaining basis after a partial — a stale original total cannot invent a loss", () => {
+    // 2 ETH bought at $3,000/unit. Sold 1. Remaining qty=1, poisoned total still $6,000.
+    const partial = lot("p", "ETH", 1, 3_000, new Date("2026-01-01T00:00:00Z"), "partial");
+    partial.costBasisUsd = 6_000;
+    const recs = harvestRecommendations([partial], { ETH: 2_500 }, 0, NOW);
+    // Honest: 2500 − 3000 = 500 loss. Poisoned: 2500 − 6000 = 3500 fake loss.
+    expect(recs).toHaveLength(1);
+    expect(recs[0].unrealizedLossUsd).toBeCloseTo(500, 2);
+    expect(recs[0].costBasisUsd).toBeCloseTo(3_000, 2);
+  });
+
   it("skips lots with no price data", () => {
     const unknown = lot("unk", "DOGE", 1000, 0.1, new Date("2026-01-01T00:00:00Z"));
     const recs = harvestRecommendations([unknown], {}, 0, NOW);
@@ -203,6 +230,14 @@ describe("estateStepUp", () => {
     expect(result.totalOriginalBasisUsd).toBeCloseTo(25_000, 2); // 20k + 5k
     expect(result.totalSteppedUpBasisUsd).toBeCloseTo(150_000, 2); // 130k + 20k
     expect(result.totalGainEliminatedUsd).toBeCloseTo(125_000, 2);
+  });
+
+  it("uses remaining basis so a partial cannot invent a §1014 loss against the original total", () => {
+    const partial = lot("p", "BTC", 1, 10_000, new Date("2025-01-01T00:00:00Z"), "partial");
+    partial.costBasisUsd = 20_000; // stale original for 2 BTC
+    const result = estateStepUp([partial], "wallet-1", STEP_UP_DATE, { BTC: 65_000 });
+    expect(result.lots[0].originalCostBasisUsd).toBeCloseTo(10_000, 2);
+    expect(result.lots[0].gainEliminatedUsd).toBeCloseTo(55_000, 2); // 65k − 10k, not 65k − 20k
   });
 
   it("excludes lots acquired after step-up date", () => {

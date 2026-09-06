@@ -22,6 +22,7 @@ import {
   harvestRecommendations,
   estateStepUp,
   STRATEGIES,
+  SIMULATOR_DISCLAIMER,
   type LotInput,
   type ConsumedLot,
   type SimulationResult,
@@ -37,16 +38,27 @@ router.use(requirePlan("pro", "tax optimizer"));
 
 // ── DB → core mapper ──────────────────────────────────────────────────────────
 
-/** Map a DB lot row to the pure-function LotInput shape. */
+import { remainingCostBasisUsd } from "../core/lotInventory.js";
+
+/** Map a DB lot row to the pure-function LotInput shape.
+ *  costBasisUsd is remaining basis (per-unit × remaining qty), never a stale original total.
+ */
 function toLotInput(row: typeof lotsTable.$inferSelect): LotInput {
+  const quantity = Number(row.quantity);
+  const costBasisPerUnitUsd =
+    row.costBasisPerUnitUsd != null ? Number(row.costBasisPerUnitUsd) : null;
+  const storedTotal = row.costBasisUsd != null ? Number(row.costBasisUsd) : null;
   return {
     id: row.id,
     walletId: row.walletId,
     assetSymbol: row.assetSymbol,
-    quantity: Number(row.quantity),
-    costBasisUsd: row.costBasisUsd != null ? Number(row.costBasisUsd) : null,
-    costBasisPerUnitUsd:
-      row.costBasisPerUnitUsd != null ? Number(row.costBasisPerUnitUsd) : null,
+    quantity,
+    costBasisUsd: remainingCostBasisUsd({
+      quantity,
+      costBasisUsd: storedTotal,
+      costBasisPerUnitUsd,
+    }),
+    costBasisPerUnitUsd,
     acquisitionDate: row.acquisitionDate,
     status: row.status as LotInput["status"],
   };
@@ -64,6 +76,7 @@ export function serializeConsumedLot(c: ConsumedLot) {
     gain_loss_usd: c.gainLossUsd,
     holding_days: c.holdingDays,
     holding_period: c.holdingPeriod,
+    basis_known: c.basisKnown,
   };
 }
 
@@ -81,6 +94,7 @@ export function serializeSimulation(r: SimulationResult) {
     short_term_gain_usd: r.shortTermGainUsd,
     long_term_gain_usd: r.longTermGainUsd,
     total_gain_usd: r.totalGainUsd,
+    unknown_basis_lots_skipped: r.unknownBasisLotsSkipped,
     warning: r.warning,
   };
 }
@@ -200,8 +214,7 @@ router.get("/tax-optimizer/simulate", async (req, res): Promise<void> => {
   }
 
   const now = new Date();
-  const disclaimer =
-    "This simulation is illustrative only and does not constitute tax advice. Consult a qualified tax professional before executing any transaction.";
+  const disclaimer = SIMULATOR_DISCLAIMER;
 
   if (strategy) {
     // Single-strategy simulation

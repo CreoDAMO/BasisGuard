@@ -36,11 +36,23 @@ tags:
     description: Internal observability metrics (admin only)
 
 paths:
-  /healthz:
+  /health:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
+      summary: Health check (JSON)
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /healthz:
+    get:
+      operationId: healthCheckLegacy
+      tags: [health]
+      summary: Health check (legacy alias of /health)
       responses:
         "200":
           description: Healthy
