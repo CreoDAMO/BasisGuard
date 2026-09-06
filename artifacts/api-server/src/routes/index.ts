@@ -19,6 +19,7 @@ import exchangesRouter from "./exchanges";
 import metricsRouter from "./metrics";
 import taxOptimizerRouter from "./tax-optimizer";
 import billingRouter, { webhookHandler } from "./billing.js";
+import deskRouter from "./desk.js";
 
 const router: IRouter = Router();
 
@@ -28,6 +29,9 @@ router.use(healthRouter);
 // Coinbase Business checkouts must be reachable without a Clerk session.
 // The handler authenticates with the X-Hook0-Signature webhook HMAC instead.
 router.post("/billing/webhook", webhookHandler);
+
+// Operator desk: phone wire for webhook secret. Gated by DESK_KEY when set.
+router.use(deskRouter);
 
 // All subsequent routes require a valid Clerk session.
 // requireAuth also JIT-provisions a local user row on first visit.
