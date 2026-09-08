@@ -8,9 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns";
 import { Users, GitCommit, FileText, ArrowRight } from "lucide-react";
 import { TierBadge } from "@/components/ui/tier-badge";
+import { asArray } from "@/lib/fetch-list";
 
 export default function ProfilesPage() {
   const { data: profiles, isLoading } = useListProfiles();
+  const profileList = asArray(profiles);
   const [selectedProfileId, setSelectedProfileId] = React.useState<string | null>(null);
 
   return (
@@ -26,7 +28,7 @@ export default function ProfilesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {isLoading ? (
           Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-xl" />)
-        ) : profiles?.map(profile => (
+        ) : profileList.map(profile => (
           <Card key={profile.id} className="bg-card/40 border-border/40 hover:bg-card/60 transition-all flex flex-col">
             <CardHeader className="pb-4 border-b border-border/30">
               <div className="flex justify-between items-start">

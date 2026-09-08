@@ -39,6 +39,7 @@ interface HarvestResult {
 }
 
 import { API } from "@/lib/api-base";
+import { asArray } from "@/lib/fetch-list";
 const BASE = API;
 
 function fmtUsd(v: number | null): string {
@@ -91,7 +92,8 @@ export default function HarvestScannerPage() {
     }
   };
 
-  const noAmountCount = result?.candidates.filter((c) => c.amount_usd == null).length ?? 0;
+  const candidates = asArray<HarvestCandidate>(result?.candidates);
+  const noAmountCount = candidates.filter((c) => c.amount_usd == null).length;
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8">
@@ -250,7 +252,7 @@ export default function HarvestScannerPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/20">
-                    {result.candidates.map((c) => (
+                    {candidates.map((c) => (
                       <tr
                         key={c.position_id}
                         className={`hover:bg-muted/10 transition-colors ${c.wash_sale_risk ? "bg-amber-500/3" : ""}`}
@@ -321,7 +323,7 @@ export default function HarvestScannerPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0 space-y-2">
-                {result.candidates
+                {candidates
                   .filter((c) => c.wash_sale_risk && c.wash_sale_pairs.some((p) => p.loss_position_id === c.position_id))
                   .map((c) =>
                     c.wash_sale_pairs

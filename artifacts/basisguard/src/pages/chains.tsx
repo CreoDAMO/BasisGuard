@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link2, Layers, ChevronRight, Network, Box } from "lucide-react";
 import { API } from "@/lib/api-base";
-import { authFetch } from "@/lib/auth-fetch";
+import { fetchJsonList } from "@/lib/fetch-list";
 
 interface Chain {
   id: string;
@@ -30,41 +30,17 @@ interface Protocol {
   created_at: string;
 }
 
-function asArray<T>(data: unknown): T[] {
-  if (Array.isArray(data)) return data as T[];
-  if (data && typeof data === "object") {
-    const rec = data as Record<string, unknown>;
-    for (const key of ["items", "chains", "protocols", "data", "results"]) {
-      if (Array.isArray(rec[key])) return rec[key] as T[];
-    }
-  }
-  return [];
-}
-
-async function fetchList<T>(url: string): Promise<T[]> {
-  const r = await authFetch(url);
-  const body = await r.json().catch(() => null);
-  if (!r.ok) {
-    const msg =
-      body && typeof body === "object" && body !== null && "error" in body
-        ? String((body as { error: unknown }).error)
-        : `HTTP ${r.status}`;
-    throw new Error(msg);
-  }
-  return asArray<T>(body);
-}
-
 function useChains() {
   return useQuery<Chain[]>({
     queryKey: ["chains"],
-    queryFn: () => fetchList<Chain>(`${API}/api/chains`),
+    queryFn: () => fetchJsonList<Chain>(`${API}/api/chains`),
   });
 }
 
 function useProtocols() {
   return useQuery<Protocol[]>({
     queryKey: ["protocols"],
-    queryFn: () => fetchList<Protocol>(`${API}/api/protocols`),
+    queryFn: () => fetchJsonList<Protocol>(`${API}/api/protocols`),
   });
 }
 

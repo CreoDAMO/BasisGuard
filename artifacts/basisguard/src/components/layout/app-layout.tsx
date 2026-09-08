@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +13,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-[100dvh] w-full bg-background text-foreground">
         <AppSidebar />
         <main className="flex-1 flex flex-col w-full overflow-hidden relative">
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+            <SidebarTrigger />
+            <span className="font-serif text-sm tracking-wide uppercase">BasisGuard</span>
+          </div>
           <div className="flex-1 overflow-auto">
             {children}
           </div>

@@ -1,6 +1,7 @@
 import React from "react";
 import { useGetDashboardSummary, useGetRecentActivity } from "@workspace/api-client-react";
 import { API } from "@/lib/api-base";
+import { asArray, fetchJsonList } from "@/lib/fetch-list";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +25,10 @@ const CHAIN_DOT: Record<string, string> = {
 export default function DashboardPage() {
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
   const { data: recentActivity, isLoading: isRecentLoading } = useGetRecentActivity({ limit: 5 });
-  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetch(`${API}/api/chains`, { credentials: "include" }).then(r => r.json()) });
-  const { data: protocols } = useQuery<Protocol[]>({ queryKey: ["protocols"], queryFn: () => fetch(`${API}/api/protocols`, { credentials: "include" }).then(r => r.json()) });
+  const { data: chainsData } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetchJsonList<Chain>(`${API}/api/chains`) });
+  const { data: protocolsData } = useQuery<Protocol[]>({ queryKey: ["protocols"], queryFn: () => fetchJsonList<Protocol>(`${API}/api/protocols`) });
+  const chains = asArray<Chain>(chainsData);
+  const protocols = asArray<Protocol>(protocolsData);
 
   const getTierColor = (tier: string) => {
     switch(tier) {
@@ -240,7 +243,7 @@ export default function DashboardPage() {
           <CardContent className="p-0">
             <div className="divide-y divide-border/50">
               {chains.map(chain => {
-                const chainProtocols = protocols?.filter(p => p.chain_id === chain.id) ?? [];
+                const chainProtocols = protocols.filter(p => p.chain_id === chain.id);
                 return (
                   <div key={chain.id} className="px-5 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-3">

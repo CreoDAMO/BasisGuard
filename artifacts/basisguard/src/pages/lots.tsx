@@ -19,6 +19,7 @@ import {
 
 import { API } from "@/lib/api-base";
 import { authFetch } from "@/lib/auth-fetch";
+import { asArray } from "@/lib/fetch-list";
 const BASE = API;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -404,7 +405,7 @@ export default function LotsPage() {
 
       if (!listResp.ok || !summaryResp.ok) throw new Error(`HTTP ${listResp.status}`);
       const [list, sum]: [ListResponse, LotSummary] = await Promise.all([listResp.json(), summaryResp.json()]);
-      setLots(list.items);
+      setLots(asArray<Lot>(list.items ?? list));
       setTotal(list.total);
       setSummary(sum);
       setOffset(off);

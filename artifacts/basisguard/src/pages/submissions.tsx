@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API } from "@/lib/api-base";
 import { authFetch } from "@/lib/auth-fetch";
+import { asArray } from "@/lib/fetch-list";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,8 @@ function useSubmissions(status = "all") {
         const body = await r.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? `HTTP ${r.status}`);
       }
-      return r.json() as Promise<Submission[]>;
+      const body = await r.json().catch(() => null);
+      return asArray<Submission>(body);
     },
   });
 }
@@ -181,8 +183,8 @@ export default function SubmissionsPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("queue");
 
-  const pending = submissions?.filter((s) => s.status === "pending") ?? [];
-  const reviewed = submissions?.filter((s) => s.status !== "pending") ?? [];
+  const pending = asArray<Submission>(submissions).filter((s) => s.status === "pending");
+  const reviewed = asArray<Submission>(submissions).filter((s) => s.status !== "pending");
 
   const approveMutation = useMutation({
     mutationFn: ({ id, type }: { id: string; type: "chain" | "protocol" }) =>
@@ -216,8 +218,8 @@ export default function SubmissionsPage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Pending Review", value: pending.length, class: "text-amber-400" },
-          { label: "Approved", value: submissions?.filter((s) => s.status === "approved").length ?? 0, class: "text-green-400" },
-          { label: "Rejected", value: submissions?.filter((s) => s.status === "rejected").length ?? 0, class: "text-red-400" },
+          { label: "Approved", value: asArray<Submission>(submissions).filter((s) => s.status === "approved").length, class: "text-green-400" },
+          { label: "Rejected", value: asArray<Submission>(submissions).filter((s) => s.status === "rejected").length, class: "text-red-400" },
         ].map(({ label, value, class: cls }) => (
           <Card key={label} className="bg-card/50 backdrop-blur border-border/50">
             <CardContent className="p-4">
