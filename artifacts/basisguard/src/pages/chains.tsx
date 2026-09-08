@@ -30,17 +30,41 @@ interface Protocol {
   created_at: string;
 }
 
+function asArray<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object") {
+    const rec = data as Record<string, unknown>;
+    for (const key of ["items", "chains", "protocols", "data", "results"]) {
+      if (Array.isArray(rec[key])) return rec[key] as T[];
+    }
+  }
+  return [];
+}
+
+async function fetchList<T>(url: string): Promise<T[]> {
+  const r = await authFetch(url);
+  const body = await r.json().catch(() => null);
+  if (!r.ok) {
+    const msg =
+      body && typeof body === "object" && body !== null && "error" in body
+        ? String((body as { error: unknown }).error)
+        : `HTTP ${r.status}`;
+    throw new Error(msg);
+  }
+  return asArray<T>(body);
+}
+
 function useChains() {
   return useQuery<Chain[]>({
     queryKey: ["chains"],
-    queryFn: () => authFetch(`${API}/api/chains`).then((r) => r.json()),
+    queryFn: () => fetchList<Chain>(`${API}/api/chains`),
   });
 }
 
 function useProtocols() {
   return useQuery<Protocol[]>({
     queryKey: ["protocols"],
-    queryFn: () => authFetch(`${API}/api/protocols`).then((r) => r.json()),
+    queryFn: () => fetchList<Protocol>(`${API}/api/protocols`),
   });
 }
 
@@ -59,15 +83,16 @@ const CHAIN_DOT: Record<string, string> = {
 };
 
 export default function ChainsPage() {
-  const { data: chains, isLoading: chainsLoading } = useChains();
-  const { data: protocols, isLoading: protocolsLoading } = useProtocols();
+  const { data: chainsData, isLoading: chainsLoading, error: chainsError } = useChains();
+  const { data: protocolsData, isLoading: protocolsLoading, error: protocolsError } = useProtocols();
+  const chains = Array.isArray(chainsData) ? chainsData : [];
+  const protocols = Array.isArray(protocolsData) ? protocolsData : [];
   const [selectedChain, setSelectedChain] = useState<string | null>(null);
 
-  const l1s = chains?.filter((c) => !c.is_l2) ?? [];
-  const l2s = chains?.filter((c) => c.is_l2) ?? [];
+  const l1s = chains.filter((ch) => !ch.is_l2);
+  const l2s = chains.filter((ch) => ch.is_l2);
 
-  const chainProtocols = (chainId: string) =>
-    protocols?.filter((p) => p.chain_id === chainId) ?? [];
+  const chainProtocols = (chainId: string) => protocols.filter((p) => p.chain_id === chainId);
 
   const isLoading = chainsLoading || protocolsLoading;
 
@@ -76,6 +101,11 @@ export default function ChainsPage() {
       <div>
         <h1 className="text-3xl font-serif font-bold text-foreground">Chain Registry</h1>
         <p className="text-muted-foreground mt-1 text-sm font-mono uppercase tracking-widest">Supported Networks & Protocol Adapters</p>
+        {(chainsError || protocolsError) && (
+          <p className="mt-3 text-sm text-red-400">
+            {(chainsError ?? protocolsError)?.message ?? "Registry did not load."}
+          </p>
+        )}
       </div>
 
       {/* Stats */}
@@ -83,8 +113,8 @@ export default function ChainsPage() {
         {[
           { label: "L1 Networks", value: l1s.length, icon: Network },
           { label: "L2 Networks", value: l2s.length, icon: Layers },
-          { label: "Protocol Adapters", value: protocols?.length ?? 0, icon: Box },
-          { label: "Total Chains", value: chains?.length ?? 0, icon: Link2 },
+          { label: "Protocol Adapters", value: protocols.length, icon: Box },
+          { label: "Total Chains", value: chains.length, icon: Link2 },
         ].map(({ label, value, icon: Icon }) => (
           <Card key={label} className="bg-card/50 backdrop-blur border-border/50">
             <CardContent className="p-5 flex items-center gap-4">
@@ -106,7 +136,7 @@ export default function ChainsPage() {
           <h2 className="text-sm font-mono uppercase tracking-widest text-muted-foreground">Networks</h2>
           {isLoading
             ? Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
-            : chains?.map((chain) => (
+            : chains.map((chain) => (
                 <button
                   key={chain.id}
                   onClick={() => setSelectedChain(selectedChain === chain.id ? null : chain.id)}
@@ -139,7 +169,7 @@ export default function ChainsPage() {
         <div className="lg:col-span-2">
           {selectedChain ? (
             (() => {
-              const chain = chains?.find((c) => c.id === selectedChain);
+              const chain = chains.find((ch) => ch.id === selectedChain);
               const protos = chainProtocols(selectedChain);
               if (!chain) return null;
               const meta = chain.metadata ?? {};
