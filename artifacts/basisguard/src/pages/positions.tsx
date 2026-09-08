@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useListPositions } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { API } from "@/lib/api-base";
-import { authFetch } from "@/lib/auth-fetch";
+import { asArray, fetchJsonList } from "@/lib/fetch-list";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,7 +23,8 @@ export default function PositionsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "requires_review" | "signed_off">("all");
   const [chainFilter, setChainFilter] = useState<string>("all");
 
-  const { data: chains } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => authFetch(`${API}/api/chains`).then(r => r.json()) });
+  const { data: chainsData } = useQuery<Chain[]>({ queryKey: ["chains"], queryFn: () => fetchJsonList<Chain>(`${API}/api/chains`) });
+  const chains = asArray<Chain>(chainsData);
 
   const queryParams: any = {};
   if (tier !== "all") queryParams.tier = tier;
@@ -86,7 +87,7 @@ export default function PositionsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Chains</SelectItem>
-                {chains?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {chains.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

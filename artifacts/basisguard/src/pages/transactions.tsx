@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 
 import { API } from "@/lib/api-base";
 import { authFetch } from "@/lib/auth-fetch";
+import { asArray } from "@/lib/fetch-list";
 const BASE = API;
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -89,7 +90,7 @@ export default function TransactionsPage() {
     queryFn: () => apiFetch<PositionRecordsResponse>(`/api/positions?page=${page}&pageSize=${pageSize}`),
   });
 
-  const records = data?.data ?? [];
+  const records = asArray<PositionRecord>(data?.data ?? data);
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 

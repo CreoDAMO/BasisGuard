@@ -3,6 +3,7 @@ import { useGetReviewQueue, useBatchSignoffPositions, getGetReviewQueueQueryKey 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { API } from "@/lib/api-base";
 import { authFetch } from "@/lib/auth-fetch";
+import { asArray } from "@/lib/fetch-list";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,18 @@ export default function ReviewQueuePage() {
   const { data: queue, isLoading } = useGetReviewQueue();
   const { data: staleData, isLoading: staleLoading } = useQuery<{ stale_count: number; items: StaleItem[] }>({
     queryKey: ["stale-positions"],
-    queryFn: () => authFetch(`${API}/api/intelligence/stale`).then(r => r.json()),
+    queryFn: async () => {
+      const r = await authFetch(`${API}/api/intelligence/stale`);
+      const body = await r.json().catch(() => null);
+      if (!r.ok) {
+        const msg =
+          body && typeof body === "object" && body !== null && "error" in body
+            ? String((body as { error: unknown }).error)
+            : `HTTP ${r.status}`;
+        throw new Error(msg);
+      }
+      return body as { stale_count: number; items: StaleItem[] };
+    },
   });
   const batchSignoff = useBatchSignoffPositions();
 
@@ -50,7 +62,9 @@ export default function ReviewQueuePage() {
   const [reviewerCredential, setReviewerCredential] = useState("");
   const [note, setNote] = useState("");
 
-  const currentItems = tab === "pending" ? (queue ?? []) : (staleData?.items ?? []);
+  const pendingQueue = asArray(queue);
+  const staleItems = asArray<StaleItem>(staleData?.items);
+  const currentItems = tab === "pending" ? pendingQueue : staleItems;
   const allIds = currentItems.map((p) => p.id);
   const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
   const someSelected = selectedIds.size > 0;
@@ -121,9 +135,9 @@ export default function ReviewQueuePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {queue && queue.length > 0 && (
+          {pendingQueue.length > 0 && (
             <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10 font-mono px-3 py-1">
-              {queue.length} pending sign-off
+              {pendingQueue.length} pending sign-off
             </Badge>
           )}
           {staleCount > 0 && (
@@ -140,8 +154,8 @@ export default function ReviewQueuePage() {
           <TabsTrigger value="pending" className="font-mono text-xs uppercase tracking-wider gap-1.5">
             <Clock className="h-3.5 w-3.5" />
             Pending Sign-Off
-            {queue && queue.length > 0 && (
-              <Badge className="ml-1 h-4 min-w-4 px-1 text-[10px] bg-amber-500/20 text-amber-400 border-none">{queue.length}</Badge>
+            {pendingQueue.length > 0 && (
+              <Badge className="ml-1 h-4 min-w-4 px-1 text-[10px] bg-amber-500/20 text-amber-400 border-none">{pendingQueue.length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="stale" className="font-mono text-xs uppercase tracking-wider gap-1.5">

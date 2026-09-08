@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, BookMarked, ExternalLink, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { CitationInputType, CitationInputAuthorityStrength } from "@workspace/api-client-react";
+import { asArray } from "@/lib/fetch-list";
 
 export default function CitationsPage() {
   const queryClient = useQueryClient();
@@ -24,6 +25,7 @@ export default function CitationsPage() {
   if (typeFilter !== "all") queryParams.type = typeFilter;
 
   const { data: citations, isLoading } = useListCitations(queryParams);
+  const citationList = asArray(citations);
   const createCitation = useCreateCitation();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -177,7 +179,7 @@ export default function CitationsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pb-8">
         {isLoading ? (
           Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-xl" />)
-        ) : citations?.map(citation => (
+        ) : citationList.map(citation => (
           <Card key={citation.id} className="bg-card/40 border-border/40 hover:bg-card/60 hover:border-border/80 transition-all flex flex-col shadow-sm">
             <CardHeader className="pb-3 border-b border-border/30">
               <div className="flex justify-between items-start mb-1">
