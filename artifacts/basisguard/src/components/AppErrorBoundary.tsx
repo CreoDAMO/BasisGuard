@@ -46,9 +46,9 @@ export class AppErrorBoundary extends Component<Props, State> {
               BasisGuard failed to load
             </h1>
             <p style={{ color: "#a1a1aa", marginBottom: "1rem" }}>
-              This is almost always a Clerk domain or proxy URL misconfiguration in production —
-              check that this domain is listed in the Clerk Dashboard's allowed domains, and that
-              VITE_CLERK_PROXY_URL matches the current API host.
+              {/clerk|proxy url|publishable/i.test(this.state.error.message)
+                ? "Clerk domain or proxy URL misconfiguration — check that this domain is listed in the Clerk Dashboard allowed domains."
+                : "A page threw during render. The message below is the actual error, not a Clerk outage."}
             </p>
             <pre
               style={{

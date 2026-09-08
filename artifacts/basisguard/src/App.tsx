@@ -304,6 +304,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/privacy" component={PrivacyPolicyPage} />
               <Route path="/terms" component={TermsOfServicePage} />
               <Route path="/desk/treasury" component={TreasuryPage} />
+              <Route path="/treasury" component={TreasuryPage} />
               {/* REQUIRED — copy "/sign-in/*?" and "/sign-up/*?" verbatim.
                   The /*? optional wildcard matches both the bare URL and Clerk's
                   OAuth sub-paths (/sign-in/sso-callback, etc). */}
@@ -327,6 +328,7 @@ function PublicFallback() {
         <Route path="/privacy" component={PrivacyPolicyPage} />
         <Route path="/terms" component={TermsOfServicePage} />
         <Route path="/desk/treasury" component={TreasuryPage} />
+        <Route path="/treasury" component={TreasuryPage} />
         <Route path="/" component={LandingPage} />
         <Route component={LandingPage} />
       </Switch>
