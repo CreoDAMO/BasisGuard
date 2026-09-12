@@ -76,8 +76,8 @@ export function parseCdpKeyFile(raw: string): CdpKeyFile {
   if (text.startsWith("{") || text.includes('"privateKey"') || text.includes('"name"')) {
     try {
       const parsed = JSON.parse(text) as Record<string, unknown>;
-      const keyId = String(parsed.name ?? parsed.id ?? parsed.apiKeyId ?? parsed.keyId ?? "").trim();
-      const secret = unwrapEnvValue(String(parsed.privateKey ?? parsed.secret ?? parsed.apiKeySecret ?? ""));
+      const keyId = String(parsed.name ?? parsed.id ?? parsed.apiKeyId ?? parsed.keyId ?? parsed.keyName ?? "").trim();
+      const secret = unwrapEnvValue(String(parsed.privateKey ?? parsed.secret ?? parsed.apiKeySecret ?? parsed.private_key ?? ""));
       if (!keyId || !secret) {
         throw new Error("Need both id/name and privateKey. The portal download is one JSON blob.");
       }
@@ -99,6 +99,37 @@ function ed25519FromSeed(seed: Buffer) {
   const der = Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed.subarray(0, 32)]);
   const key = createPrivateKey({ key: der, format: "der", type: "pkcs8" });
   return { key, alg: "EdDSA" as const };
+}
+
+export function cdpSecretShape(secret: string) {
+  const text = unwrapEnvValue(secret);
+  if (!text) return "empty";
+  if (text.startsWith("{")) return `JSON (${text.length} chars)`;
+  if (text.includes("BEGIN")) return "PEM";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
+    return "UUID (a key id, not a private key)";
+  }
+  if (/^(0x)?[0-9a-fA-F]+$/.test(text.replace(/\s/g, ""))) {
+    return `hex (${text.length} chars)`;
+  }
+  return `opaque (${text.length} chars, no PEM headers)`;
+}
+
+function tryImportBinary(buf: Buffer): { key: KeyObject; alg: "ES256" | "EdDSA" } | null {
+  if (buf.length === 32 || buf.length === 64) {
+    return ed25519FromSeed(buf);
+  }
+  if (buf.length > 16) {
+    for (const type of ["pkcs8", "sec1"] as const) {
+      try {
+        const key = createPrivateKey({ key: buf, format: "der", type });
+        return { key, alg: key.asymmetricKeyType === "ed25519" ? "EdDSA" : "ES256" };
+      } catch {
+        /* try next DER type */
+      }
+    }
+  }
+  return null;
 }
 
 export function importCdpSecret(secret: string): { key: KeyObject; alg: "ES256" | "EdDSA" } {
@@ -124,7 +155,23 @@ export function importCdpSecret(secret: string): { key: KeyObject; alg: "ES256" 
     return ed25519FromSeed(Buffer.from(hexBody, "hex"));
   }
 
-  throw new Error("Secret is not a PEM and not a 32/64-byte Ed25519 blob. Paste the whole JSON Coinbase downloaded.");
+  // Default CDP keys (Feb 2025+) are Ed25519: base64 of 32-byte seed or 64-byte seed+pub.
+  const b64 = compact.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  try {
+    const imported = tryImportBinary(Buffer.from(padded, "base64"));
+    if (imported) return imported;
+  } catch {
+    /* fall through to the shape error */
+  }
+
+  const shape = cdpSecretShape(secret);
+  throw new Error(
+    `Secret is ${shape}. Not a PEM and not a 32/64-byte Ed25519 blob. ` +
+      (shape.startsWith("UUID")
+        ? "That UUID is the key id. Upload the JSON Coinbase downloaded — it has both the id and the private key."
+        : "Upload the JSON Coinbase downloaded. Default CDP keys are Ed25519 (base64), not a PEM."),
+  );
 }
 
 export function signCdpJwt(opts: {

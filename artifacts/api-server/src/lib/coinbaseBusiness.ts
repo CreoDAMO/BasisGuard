@@ -2,7 +2,7 @@
  * Coinbase Business Checkouts API client — USDC subscription payments.
  *
  * Replaces the discontinued Coinbase Commerce product (X-CC-Api-Key / charges).
- * Auth is a CDP JWT (ES256) minted from Business-scoped keys.
+ * Auth is a CDP JWT minted from Business-scoped keys (Ed25519 or ES256).
  *
  * This file is the *merchant* rail. Customer Coinbase tx import still lives in
  * coinbaseClient.ts and must keep using the user's own read-only keys.
@@ -13,6 +13,7 @@
  */
 import crypto from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
+import { envCdpKey, signCdpJwt } from "./cdpWebhook.js";
 
 const BUSINESS_API_HOST = "business.coinbase.com";
 const BUSINESS_API_BASE = `https://${BUSINESS_API_HOST}`;
@@ -33,52 +34,31 @@ export interface CheckoutWebhookPayload extends BusinessCheckout {
   eventType: string;
 }
 
-function businessCredentials(): { keyName: string; privateKeyPem: string } {
-  const keyName = process.env.COINBASE_BUSINESS_KEY_NAME;
-  const privateKeyPem = process.env.COINBASE_BUSINESS_PRIVATE_KEY;
-  if (!keyName || !privateKeyPem) {
+function businessCredentials(): { keyName: string; privateKey: string } {
+  const keys = envCdpKey();
+  if (!keys) {
     throw new Error(
       "COINBASE_BUSINESS_KEY_NAME and COINBASE_BUSINESS_PRIVATE_KEY must be set (CDP JWT keys — not old X-CC-Api-Key Commerce credentials)",
     );
   }
-  return { keyName, privateKeyPem };
+  return { keyName: keys.keyId, privateKey: keys.secret };
 }
 
 /**
- * CDP ES256 JWT for a single Business API request.
+ * CDP JWT for a single Business API request.
+ * Accepts the default Ed25519 (base64) download and the older EC PEM.
  * `uri` is `METHOD host path` matching the request, e.g.
  * `POST business.coinbase.com/api/v1/checkouts`.
  */
 export function buildBusinessJwt(method: string, path: string): string {
-  const { keyName, privateKeyPem } = businessCredentials();
-  const now = Math.floor(Date.now() / 1000);
-  const nonce = crypto.randomBytes(16).toString("hex");
-
-  const header = Buffer.from(
-    JSON.stringify({ alg: "ES256", kid: keyName, nonce }),
-  ).toString("base64url");
-
-  const payload = Buffer.from(
-    JSON.stringify({
-      sub: keyName,
-      iss: "cdp",
-      nbf: now,
-      exp: now + 120,
-      uri: `${method.toUpperCase()} ${BUSINESS_API_HOST}${path}`,
-    }),
-  ).toString("base64url");
-
-  const signingInput = `${header}.${payload}`;
-  const pem = privateKeyPem.replace(/\\n/g, "\n").trim();
-  // ES256 JWT signing with an EC private key — not password hashing.
-  // codeql[js/insufficient-password-hash]
-  const signer = crypto.createSign("SHA256");
-  signer.update(signingInput);
-  const signature = signer
-    .sign({ key: pem, dsaEncoding: "ieee-p1363" })
-    .toString("base64url");
-
-  return `${signingInput}.${signature}`;
+  const { keyName, privateKey } = businessCredentials();
+  return signCdpJwt({
+    keyId: keyName,
+    secret: privateKey,
+    method: method.toUpperCase(),
+    host: BUSINESS_API_HOST,
+    path,
+  });
 }
 
 async function businessFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
